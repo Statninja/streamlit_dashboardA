@@ -4,230 +4,165 @@ import numpy as np
 from datetime import datetime, timedelta
 import io
 
-# Set page configuration with premium banking theme
+# Set page configuration with royal blue theme
 st.set_page_config(
-    page_title="Accenture Banking Analytics",
-    page_icon="🏦",
+    page_title="Banking Campaign Analytics",
+    page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Premium CSS for ultra-sharp banking interface
+# Custom CSS for royal blue background and Helvetica font
 st.markdown("""
 <style>
     .main {
-        background: linear-gradient(135deg, #0A0F2D 0%, #1A1F3C 50%, #0A0F2D 100%);
-        color: #FFFFFF;
-        font-family: 'Helvetica Neue', Arial, sans-serif;
+        background-color: #1E3A8A;
+        color: white;
+        font-family: 'Helvetica', Arial, sans-serif;
     }
     .stApp {
-        background: linear-gradient(135deg, #0A0F2D 0%, #1A1F3C 50%, #0A0F2D 100%);
-        font-family: 'Helvetica Neue', Arial, sans-serif;
+        background: linear-gradient(135deg, #1E3A8A 0%, #3730A3 50%, #1E40AF 100%);
+        font-family: 'Helvetica', Arial, sans-serif;
     }
     .main-header {
-        font-size: 3.2rem;
-        color: #FFFFFF;
-        font-weight: 800;
-        margin-bottom: 0.5rem;
-        font-family: 'Helvetica Neue', Arial, sans-serif;
-        text-shadow: 0px 4px 8px rgba(0,0,0,0.5);
-        letter-spacing: -0.5px;
-        background: linear-gradient(90deg, #FFFFFF 0%, #D4AF37 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
+        font-size: 2.8rem;
+        color: white;
+        font-weight: bold;
+        margin-bottom: 1rem;
+        font-family: 'Helvetica', Arial, sans-serif;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
     }
     .section-header {
-        font-size: 2.1rem;
-        color: #D4AF37;
-        font-weight: 700;
-        margin-bottom: 1.5rem;
-        font-family: 'Helvetica Neue', Arial, sans-serif;
-        border-bottom: 3px solid #D4AF37;
-        padding-bottom: 0.5rem;
-        letter-spacing: -0.3px;
-    }
-    .subsection-header {
-        font-size: 1.6rem;
-        color: #FFFFFF;
-        font-weight: 600;
-        margin: 1.5rem 0 1rem 0;
-        font-family: 'Helvetica Neue', Arial, sans-serif;
-        letter-spacing: -0.2px;
+        font-size: 1.8rem;
+        color: white;
+        font-weight: bold;
+        margin-bottom: 1rem;
+        font-family: 'Helvetica', Arial, sans-serif;
     }
     .metric-card {
-        background: rgba(255, 255, 255, 0.05);
-        backdrop-filter: blur(20px);
-        padding: 1.8rem;
-        border-radius: 12px;
-        border: 1px solid rgba(212, 175, 55, 0.3);
-        margin-bottom: 1.5rem;
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        padding: 1.5rem;
+        border-radius: 15px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        margin-bottom: 1rem;
         color: white;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.3);
     }
     .stMetric {
-        background: linear-gradient(135deg, rgba(212, 175, 55, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
-        padding: 1.5rem;
-        border-radius: 12px;
-        border: 1px solid rgba(212, 175, 55, 0.2);
-        backdrop-filter: blur(10px);
+        background: rgba(255, 255, 255, 0.15);
+        padding: 1rem;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.3);
     }
     .sidebar .sidebar-content {
-        background: linear-gradient(180deg, #0A0F2D 0%, #1A1F3C 100%);
-        border-right: 1px solid rgba(212, 175, 55, 0.3);
+        background: rgba(30, 58, 138, 0.9);
+        backdrop-filter: blur(10px);
     }
     div[data-testid="stSidebarNav"] {
-        background: rgba(255, 255, 255, 0.05);
+        background: rgba(255, 255, 255, 0.1);
     }
     .funnel-container {
-        background: rgba(255, 255, 255, 0.05);
-        padding: 25px;
-        border-radius: 12px;
-        margin: 15px 0;
-        border: 1px solid rgba(212, 175, 55, 0.2);
-        backdrop-filter: blur(10px);
+        background: rgba(255, 255, 255, 0.1);
+        padding: 20px;
+        border-radius: 10px;
+        margin: 10px 0;
     }
     .funnel-stage {
-        background: linear-gradient(90deg, #D4AF37, #FFD700);
-        margin: 12px 0;
-        padding: 18px;
-        border-radius: 8px;
+        background: linear-gradient(90deg, #FF6B6B, #4ECDC4);
+        margin: 10px 0;
+        padding: 15px;
+        border-radius: 5px;
         text-align: center;
-        color: #0A0F2D;
-        font-weight: 700;
-        font-family: 'Helvetica Neue', Arial, sans-serif;
-        font-size: 1.1rem;
-        box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);
-        transition: transform 0.2s ease;
-    }
-    .funnel-stage:hover {
-        transform: translateX(5px);
+        color: white;
+        font-weight: bold;
+        font-family: 'Helvetica', Arial, sans-serif;
     }
     .map-container {
-        background: rgba(255, 255, 255, 0.05);
-        padding: 25px;
-        border-radius: 12px;
-        margin: 15px 0;
-        border: 1px solid rgba(212, 175, 55, 0.2);
-        backdrop-filter: blur(10px);
+        background: rgba(255, 255, 255, 0.1);
+        padding: 20px;
+        border-radius: 10px;
+        margin: 10px 0;
+        text-align: center;
     }
     .region-card {
-        background: linear-gradient(135deg, rgba(212, 175, 55, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
-        padding: 18px;
-        border-radius: 10px;
-        margin: 12px 0;
-        border-left: 4px solid #D4AF37;
-        border: 1px solid rgba(212, 175, 55, 0.2);
-    }
-    .stButton button {
-        background: linear-gradient(90deg, #D4AF37 0%, #FFD700 100%);
-        color: #0A0F2D;
-        font-weight: 700;
-        border: none;
-        border-radius: 8px;
-        padding: 12px 24px;
-        font-family: 'Helvetica Neue', Arial, sans-serif;
-        transition: all 0.3s ease;
-    }
-    .stButton button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(212, 175, 55, 0.4);
-    }
-    .stSelectbox, .stMultiselect, .stSlider, .stTextInput, .stTextArea, .stDateInput {
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(212, 175, 55, 0.3);
-        border-radius: 8px;
-        color: white;
-    }
-    .stDataFrame {
-        border: 1px solid rgba(212, 175, 55, 0.2);
-        border-radius: 8px;
-    }
-    /* Fix chart labels */
-    .stChart {
-        background: rgba(255, 255, 255, 0.05);
-        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.15);
         padding: 15px;
+        border-radius: 10px;
+        margin: 10px 0;
+        border-left: 4px solid #FF6B6B;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Generate premium banking data
+# Generate enhanced sample data with geographic information
 def generate_sample_data():
     np.random.seed(42)
     
-    # Spanish regions data - premium banking focus
+    # Spanish regions data
     spanish_regions = {
-        'Madrid': {'customers': 2450, 'conversion': 6.8, 'revenue': 1250000, 'aum': 450000000},
-        'Cataluña': {'customers': 1980, 'conversion': 5.9, 'revenue': 980000, 'aum': 320000000},
-        'Andalucía': {'customers': 1650, 'conversion': 4.7, 'revenue': 720000, 'aum': 280000000},
-        'Valencia': {'customers': 1320, 'conversion': 5.2, 'revenue': 580000, 'aum': 195000000},
-        'País Vasco': {'customers': 980, 'conversion': 7.1, 'revenue': 420000, 'aum': 180000000},
-        'Galicia': {'customers': 870, 'conversion': 4.3, 'revenue': 380000, 'aum': 150000000},
-        'Castilla y León': {'customers': 920, 'conversion': 4.1, 'revenue': 390000, 'aum': 165000000},
-        'Aragón': {'customers': 750, 'conversion': 4.8, 'revenue': 320000, 'aum': 120000000},
-        'Canarias': {'customers': 680, 'conversion': 4.5, 'revenue': 290000, 'aum': 95000000}
+        'Madrid': {'customers': 180, 'conversion': 4.8, 'revenue': 450000},
+        'Cataluña': {'customers': 160, 'conversion': 4.2, 'revenue': 380000},
+        'Andalucía': {'customers': 150, 'conversion': 3.9, 'revenue': 320000},
+        'Valencia': {'customers': 120, 'conversion': 4.1, 'revenue': 280000},
+        'País Vasco': {'customers': 90, 'conversion': 5.2, 'revenue': 220000},
+        'Galicia': {'customers': 80, 'conversion': 3.8, 'revenue': 180000},
+        'Castilla y León': {'customers': 85, 'conversion': 3.6, 'revenue': 190000},
+        'Aragón': {'customers': 70, 'conversion': 4.0, 'revenue': 160000},
+        'Canarias': {'customers': 65, 'conversion': 3.7, 'revenue': 150000}
     }
     
-    # European markets data
+    # European countries data
     european_countries = {
-        'Spain': {'customers': 10000, 'conversion': 5.2, 'revenue': 5230000, 'aum': 1850000000},
-        'France': {'customers': 12500, 'conversion': 4.8, 'revenue': 4980000, 'aum': 2200000000},
-        'Germany': {'customers': 14200, 'conversion': 5.6, 'revenue': 6150000, 'aum': 2850000000},
-        'Italy': {'customers': 9800, 'conversion': 4.3, 'revenue': 3820000, 'aum': 1650000000},
-        'UK': {'customers': 15800, 'conversion': 5.1, 'revenue': 5980000, 'aum': 3150000000},
-        'Switzerland': {'customers': 5200, 'conversion': 8.2, 'revenue': 2850000, 'aum': 1850000000}
+        'Spain': {'customers': 1000, 'conversion': 4.2, 'revenue': 2450000},
+        'France': {'customers': 850, 'conversion': 3.8, 'revenue': 1980000},
+        'Germany': {'customers': 920, 'conversion': 4.5, 'revenue': 2150000},
+        'Italy': {'customers': 780, 'conversion': 3.9, 'revenue': 1820000},
+        'UK': {'customers': 890, 'conversion': 4.1, 'revenue': 2080000},
+        'Portugal': {'customers': 450, 'conversion': 3.5, 'revenue': 1250000}
     }
     
-    # Premium customer base data
+    # Customer base data
     customers = []
-    for i in range(5000):
+    for i in range(1000):
         region = np.random.choice(list(spanish_regions.keys()))
-        income_tier = np.random.choice(['Mass Affluent', 'High Net Worth', 'Private Banking'], 
-                                      p=[0.6, 0.3, 0.1])
         customers.append({
-            'customer_id': f'PB_{i:05d}',
-            'age': np.random.randint(25, 75),
-            'income_tier': income_tier,
-            'product_holdings': np.random.randint(2, 8),
-            'total_balance': np.random.lognormal(10, 1.2) * 10000,
-            'investment_portfolio': np.random.lognormal(11, 1.5) * 10000,
-            'credit_score': np.random.randint(650, 850),
+            'customer_id': f'CUST_{i:04d}',
+            'age': np.random.randint(18, 70),
+            'income_segment': np.random.choice(['Low', 'Medium', 'High'], p=[0.3, 0.5, 0.2]),
+            'product_holdings': np.random.randint(1, 6),
+            'last_transaction_days': np.random.randint(1, 90),
+            'total_balance': np.random.normal(5000, 3000),
+            'risk_profile': np.random.choice(['Low', 'Medium', 'High'], p=[0.6, 0.3, 0.1]),
             'region': region,
-            'campaign_eligible': np.random.choice([True, False], p=[0.8, 0.2]),
-            'last_contact_days': np.random.randint(1, 120)
+            'campaign_eligible': np.random.choice([True, False], p=[0.7, 0.3])
         })
     
     df_customers = pd.DataFrame(customers)
+    df_customers['total_balance'] = df_customers['total_balance'].clip(lower=0)
     
-    # Premium campaign performance data
-    campaigns = [
-        'Wealth Management', 'Private Banking', 'Premium Credit Cards', 
-        'Investment Advisory', 'Family Office', 'ESG Investing'
-    ]
+    # Campaign performance data
+    campaigns = ['Credit Card Premium', 'Personal Loan', 'Mortgage', 'Investment Fund', 'Insurance']
     campaign_data = []
     
     for campaign in campaigns:
         for month in range(1, 13):
-            base_conversion = np.random.uniform(0.08, 0.25)  # Higher conversion for premium
             campaign_data.append({
                 'campaign_name': campaign,
                 'month': month,
-                'target_audience': np.random.randint(800, 3000),
-                'actual_reach': np.random.randint(700, 2900),
-                'conversion_rate': base_conversion,
-                'revenue_generated': np.random.uniform(150000, 800000),
-                'aum_generated': np.random.uniform(5000000, 25000000),
-                'cost_per_acquisition': np.random.uniform(200, 800)
+                'target_audience': np.random.randint(500, 2000),
+                'actual_reach': np.random.randint(400, 1900),
+                'conversion_rate': np.random.uniform(0.02, 0.15),
+                'revenue_generated': np.random.uniform(5000, 50000),
+                'cost_per_acquisition': np.random.uniform(50, 200)
             })
     
     df_campaigns = pd.DataFrame(campaign_data)
     
-    # Premium funnel data
+    # Funnel data
     funnel_data = {
-        'stage': ['Market Reach', 'Lead Generation', 'Qualified Leads', 'Client Onboarding', 'Assets Under Management'],
-        'count': [50000, 18500, 8200, 3500, 2800],
-        'percentage': [100, 37, 16.4, 7, 5.6],
-        'value_eur': [0, 0, 18500000, 125000000, 1850000000]
+        'stage': ['Awareness', 'Interest', 'Consideration', 'Conversion', 'Loyalty'],
+        'count': [10000, 6500, 3200, 1500, 800],
+        'percentage': [100, 65, 32, 15, 8]
     }
     df_funnel = pd.DataFrame(funnel_data)
     
@@ -244,239 +179,239 @@ df_funnel = st.session_state.df_funnel
 spanish_regions = st.session_state.spanish_regions
 european_countries = st.session_state.european_countries
 
-# Create premium funnel chart
-def create_premium_funnel(funnel_data):
+# Create funnel chart using HTML/CSS
+def create_funnel_chart(funnel_data):
     html_funnel = """
     <div class="funnel-container">
-        <h4 style="color: #D4AF37; text-align: center; font-family: 'Helvetica Neue'; font-weight: 700; font-size: 1.4rem; margin-bottom: 1.5rem;">CLIENT ACQUISITION FUNNEL</h4>
+        <h4 style="color: white; text-align: center; font-family: Helvetica;">Conversion Funnel</h4>
     """
     
-    colors = ['#D4AF37', '#FFD700', '#FFEC8B', '#FFF8DC', '#FFFFFF']
+    colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7']
     
     for i, (_, row) in enumerate(funnel_data.iterrows()):
-        width = max(30, row['percentage'] * 1.5)  # Minimum width for visibility
+        width = row['percentage'] * 2  # Scale for visual effect
         html_funnel += f"""
-        <div class="funnel-stage" style="background: linear-gradient(90deg, {colors[i]}, {colors[(i+1)%len(colors)]}); width: {width}%; margin: 0 auto 8px auto;">
-            <div style="font-size: 1.1rem; font-weight: 700;">{row['stage']}</div>
-            <div style="font-size: 1rem; margin-top: 4px;">
-                {row['count']:,} Clients | {row['percentage']}% Conversion
-            </div>
-            <div style="font-size: 0.9rem; margin-top: 2px; opacity: 0.9;">
-                €{row['value_eur']:,.0f} AUM
-            </div>
+        <div class="funnel-stage" style="background: linear-gradient(90deg, {colors[i]}, {colors[(i+1)%len(colors)]}); width: {width}%; margin: 0 auto;">
+            {row['stage']}: {row['count']:,} customers ({row['percentage']}%)
         </div>
         """
     
     html_funnel += "</div>"
     return html_funnel
 
-# Create premium geographic visualization
-def create_premium_geographic_view(regions_data, title):
+# Create geographic visualization using HTML/CSS
+def create_geographic_visualization(regions_data, title, is_europe=False):
     html_content = f"""
     <div class="map-container">
-        <h4 style="color: #D4AF37; text-align: center; font-family: 'Helvetica Neue'; font-weight: 700; margin-bottom: 1.5rem;">{title}</h4>
-        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+        <h4 style="color: white; text-align: center; font-family: Helvetica;">{title}</h4>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 20px;">
     """
     
     for region, data in regions_data.items():
         html_content += f"""
         <div class="region-card">
-            <h5 style="color: #D4AF37; margin: 0 0 8px 0; font-family: 'Helvetica Neue'; font-weight: 700; font-size: 1.1rem;">{region}</h5>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.9rem;">
-                <div style="color: #FFFFFF;">Clients:</div>
-                <div style="color: #D4AF37; text-align: right; font-weight: 600;">{data['customers']:,}</div>
-                <div style="color: #FFFFFF;">Conversion:</div>
-                <div style="color: #D4AF37; text-align: right; font-weight: 600;">{data['conversion']}%</div>
-                <div style="color: #FFFFFF;">Revenue:</div>
-                <div style="color: #D4AF37; text-align: right; font-weight: 600;">€{data['revenue']:,}</div>
-                <div style="color: #FFFFFF;">AUM:</div>
-                <div style="color: #D4AF37; text-align: right; font-weight: 600;">€{data['aum']:,}</div>
-            </div>
+            <h5 style="color: white; margin: 0; font-family: Helvetica;">{region}</h5>
+            <p style="color: white; margin: 5px 0; font-family: Helvetica;">Customers: {data['customers']:,}</p>
+            <p style="color: white; margin: 5px 0; font-family: Helvetica;">Conversion: {data['conversion']}%</p>
+            <p style="color: white; margin: 5px 0; font-family: Helvetica;">Revenue: €{data['revenue']:,}</p>
         </div>
         """
     
     html_content += "</div></div>"
     return html_content
 
-# Premium sidebar navigation
-st.sidebar.markdown("<h1 style='color: #D4AF37; font-family: \"Helvetica Neue\"; font-weight: 800; font-size: 1.6rem; margin-bottom: 2rem;'>ACCENTURE WEALTH ANALYTICS</h1>", unsafe_allow_html=True)
+# Sidebar navigation
+st.sidebar.markdown("<h1 style='color: white; font-family: Helvetica;'>📊 Navigation</h1>", unsafe_allow_html=True)
 section = st.sidebar.radio("", 
-    ["🏦 EXECUTIVE DASHBOARD", "🎯 CLIENT ACQUISITION", "📈 PERFORMANCE ANALYTICS", "🗺️ MARKET INTELLIGENCE", "🚀 CAMPAIGN EXECUTION"])
+    ["🏠 Dashboard Overview", "🎯 Audience Generation", "📈 Campaign Analytics", "🗺️ Geographic Analysis", "🚀 Campaign Execution"])
 
 # Main header
-st.markdown("<h1 class='main-header'>PRIVATE BANKING ANALYTICS PLATFORM</h1>", unsafe_allow_html=True)
-st.markdown("<p style='color: #D4AF37; font-size: 1.3rem; font-family: \"Helvetica Neue\"; font-weight: 600; text-align: center; letter-spacing: 0.5px;'>WEALTH MANAGEMENT & CLIENT ACQUISITION INTELLIGENCE</p>", unsafe_allow_html=True)
+st.markdown("<h1 class='main-header'>🏦 Banking Campaign Analytics Dashboard</h1>", unsafe_allow_html=True)
+st.markdown("<p style='color: white; font-size: 1.2rem; font-family: Helvetica;'>Generación de Audiencias & Programación de Campañas con PySpark</p>", unsafe_allow_html=True)
 
-if section == "🏦 EXECUTIVE DASHBOARD":
-    st.markdown("<h2 class='section-header'>EXECUTIVE OVERVIEW</h2>", unsafe_allow_html=True)
+if section == "🏠 Dashboard Overview":
+    st.markdown("<h2 class='section-header'>📈 Executive Summary</h2>", unsafe_allow_html=True)
     
-    # Premium KPI Metrics
+    # KPI Metrics
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        total_aum = sum(region['aum'] for region in spanish_regions.values())
+        total_customers = len(df_customers)
+        eligible_customers = len(df_customers[df_customers['campaign_eligible']])
         st.metric(
-            label="TOTAL ASSETS UNDER MANAGEMENT", 
-            value=f"€{total_aum:,.0f}",
-            delta="+8.7% YoY"
+            label="Total Customers", 
+            value=f"{total_customers:,}",
+            delta=f"{eligible_customers} eligible"
         )
     
     with col2:
-        avg_conversion = df_campaigns['conversion_rate'].mean() * 100
+        avg_balance = df_customers['total_balance'].mean()
         st.metric(
-            label="AVG CONVERSION RATE", 
-            value=f"{avg_conversion:.1f}%",
-            delta="+2.3%"
+            label="Average Balance", 
+            value=f"€{avg_balance:,.0f}",
+            delta="+5.2%"
         )
     
     with col3:
-        premium_clients = len(df_customers[df_customers['income_tier'] != 'Mass Affluent'])
+        total_revenue = df_campaigns['revenue_generated'].sum()
         st.metric(
-            label="PREMIUM CLIENTS", 
-            value=f"{premium_clients:,}",
-            delta=f"{premium_clients/len(df_customers)*100:.1f}% of portfolio"
+            label="Total Revenue", 
+            value=f"€{total_revenue:,.0f}",
+            delta="+12.3%"
         )
     
     with col4:
-        total_revenue = df_campaigns['revenue_generated'].sum()
+        avg_conversion = df_campaigns['conversion_rate'].mean() * 100
         st.metric(
-            label="ANNUAL REVENUE", 
-            value=f"€{total_revenue:,.0f}",
-            delta="+15.2%"
+            label="Avg Conversion Rate", 
+            value=f"{avg_conversion:.1f}%",
+            delta="+2.1%"
         )
     
-    # Premium Charts and Data
+    # Charts and Data Table
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("<h3 class='subsection-header'>CLIENT ACQUISITION FUNNEL</h3>", unsafe_allow_html=True)
-        st.markdown(create_premium_funnel(df_funnel), unsafe_allow_html=True)
+        st.markdown("#### 📊 Customer Data Table")
+        st.dataframe(df_customers[['customer_id', 'age', 'income_segment', 'region', 'total_balance', 'product_holdings']].head(10))
         
-        st.markdown("<h3 class='subsection-header'>PORTFOLIO COMPOSITION</h3>", unsafe_allow_html=True)
-        portfolio_data = df_customers['income_tier'].value_counts()
-        st.bar_chart(portfolio_data)
+        st.markdown("#### 📈 Funnel Analysis")
+        # Display HTML funnel
+        st.markdown(create_funnel_chart(df_funnel), unsafe_allow_html=True)
+        
+        # Additional funnel metrics
+        col_f1, col_f2, col_f3 = st.columns(3)
+        with col_f1:
+            st.metric("Awareness", "10,000")
+        with col_f2:
+            st.metric("Conversion", "1,500")
+        with col_f3:
+            st.metric("Overall Rate", "15%")
     
     with col2:
-        st.markdown("<h3 class='subsection-header'>CLIENT PORTFOLIO OVERVIEW</h3>", unsafe_allow_html=True)
-        # Premium client data display
-        premium_display = df_customers[['customer_id', 'income_tier', 'total_balance', 'investment_portfolio', 'credit_score']].head(8)
-        st.dataframe(premium_display.style.format({
-            'total_balance': '€{:,.0f}',
-            'investment_portfolio': '€{:,.0f}'
-        }), use_container_width=True)
+        st.markdown("#### 📊 Customer Distribution by Income Segment")
+        income_dist = df_customers['income_segment'].value_counts()
+        st.bar_chart(income_dist)
         
-        st.markdown("<h3 class='subsection-header'>ASSET CLASS DISTRIBUTION</h3>", unsafe_allow_html=True)
-        asset_classes = ['Equities', 'Fixed Income', 'Alternatives', 'Cash', 'Real Estate']
-        allocation = [45, 30, 15, 5, 5]
-        asset_data = pd.DataFrame({'Asset Class': asset_classes, 'Allocation %': allocation})
-        st.bar_chart(asset_data.set_index('Asset Class'))
+        st.markdown("#### 📈 Campaign Performance Overview")
+        campaign_perf = df_campaigns.groupby('campaign_name')['conversion_rate'].mean().sort_values(ascending=False)
+        
+        # Display campaign performance as metrics
+        for campaign, rate in campaign_perf.items():
+            col_c1, col_c2 = st.columns([3, 1])
+            with col_c1:
+                st.write(f"**{campaign}**")
+            with col_c2:
+                st.metric("Rate", f"{rate*100:.1f}%")
+        
+        st.markdown("#### 🌍 Regional Distribution")
+        region_dist = df_customers['region'].value_counts()
+        st.dataframe(region_dist)
 
-elif section == "🎯 CLIENT ACQUISITION":
-    st.markdown("<h2 class='section-header'>PRECISION CLIENT ACQUISITION</h2>", unsafe_allow_html=True)
+elif section == "🎯 Audience Generation":
+    st.markdown("<h2 class='section-header'>🎯 Campaign Audience Generation</h2>", unsafe_allow_html=True)
     
     col1, col2 = st.columns([1, 2])
     
     with col1:
-        st.markdown("<h3 class='subsection-header'>TARGETING CRITERIA</h3>", unsafe_allow_html=True)
+        st.markdown("#### 🔧 Audience Criteria")
         
         campaign_type = st.selectbox(
-            "WEALTH SEGMENT:",
-            ["Private Banking", "High Net Worth", "Mass Affluent", "Family Office", "Institutional"]
+            "Select Campaign Type:",
+            ["Credit Card Premium", "Personal Loan", "Mortgage", "Investment Fund", "Insurance"]
         )
         
-        st.markdown("**CLIENT FILTERS:**")
-        min_balance = st.slider("MINIMUM ASSETS (€)", 50000, 5000000, 250000, step=50000)
-        min_credit = st.slider("MINIMUM CREDIT SCORE", 650, 850, 720)
-        income_tiers = st.multiselect(
-            "WEALTH TIERS:",
-            ["Mass Affluent", "High Net Worth", "Private Banking"],
-            default=["High Net Worth", "Private Banking"]
+        st.markdown("**Audience Filters:**")
+        min_balance = st.slider("Minimum Balance (€)", 0, 10000, 1000, step=500)
+        max_age = st.slider("Maximum Age", 18, 70, 65)
+        income_levels = st.multiselect(
+            "Income Segments:",
+            ["Low", "Medium", "High"],
+            default=["Medium", "High"]
         )
         
         regions = st.multiselect(
-            "TARGET REGIONS:",
+            "Regions:",
             df_customers['region'].unique(),
             default=df_customers['region'].unique()
         )
         
-        min_products = st.slider("MINIMUM PRODUCT HOLDINGS", 2, 8, 3)
+        min_products = st.slider("Minimum Products Held", 1, 5, 1)
         
-        if st.button("🎯 GENERATE TARGET AUDIENCE", type="primary", use_container_width=True):
+        if st.button("🔍 Generate Audience", type="primary", use_container_width=True):
             filtered_audience = df_customers[
                 (df_customers['total_balance'] >= min_balance) &
-                (df_customers['credit_score'] >= min_credit) &
-                (df_customers['income_tier'].isin(income_tiers)) &
+                (df_customers['age'] <= max_age) &
+                (df_customers['income_segment'].isin(income_levels)) &
                 (df_customers['region'].isin(regions)) &
                 (df_customers['product_holdings'] >= min_products) &
                 (df_customers['campaign_eligible'])
             ].copy()
             st.session_state.filtered_audience = filtered_audience
-            st.success(f"✅ TARGET AUDIENCE IDENTIFIED: {len(filtered_audience):,} PREMIUM CLIENTS")
+            st.success(f"✅ Audience generated: {len(filtered_audience)} customers")
     
     with col2:
-        st.markdown("<h3 class='subsection-header'>AUDIENCE INTELLIGENCE</h3>", unsafe_allow_html=True)
+        st.markdown("#### 📋 Generated Audience Summary")
         
         if 'filtered_audience' in st.session_state and len(st.session_state.filtered_audience) > 0:
             audience = st.session_state.filtered_audience
             
             col1, col2, col3, col4 = st.columns(4)
             with col1:
-                st.metric("TARGET SIZE", f"{len(audience):,}")
+                st.metric("Audience Size", f"{len(audience):,}")
             with col2:
-                st.metric("AVG ASSETS", f"€{audience['total_balance'].mean():,.0f}")
+                st.metric("Avg Balance", f"€{audience['total_balance'].mean():,.0f}")
             with col3:
-                st.metric("AVG PORTFOLIO", f"€{audience['investment_portfolio'].mean():,.0f}")
+                st.metric("Avg Products", f"{audience['product_holdings'].mean():.1f}")
             with col4:
-                st.metric("AVG CREDIT", f"{audience['credit_score'].mean():.0f}")
+                st.metric("Avg Age", f"{audience['age'].mean():.1f}")
             
-            st.markdown("<h4 style='color: #D4AF37; margin: 1.5rem 0 1rem 0;'>CLIENT SEGMENT ANALYSIS</h4>", unsafe_allow_html=True)
+            st.markdown("##### 📊 Audience Composition")
             
-            tab1, tab2, tab3 = st.tabs(["WEALTH DISTRIBUTION", "REGIONAL ANALYSIS", "CLIENT DATA"])
+            tab1, tab2, tab3 = st.tabs(["Demographics", "Financial", "Raw Data"])
             
             with tab1:
                 col1, col2 = st.columns(2)
                 with col1:
-                    st.markdown("**WEALTH TIER DISTRIBUTION**")
-                    wealth_counts = audience['income_tier'].value_counts()
-                    st.bar_chart(wealth_counts)
+                    st.markdown("**Income Distribution**")
+                    income_counts = audience['income_segment'].value_counts()
+                    st.bar_chart(income_counts)
                 
                 with col2:
-                    st.markdown("**ASSET DISTRIBUTION**")
-                    # Use proper binning for better visualization
-                    balance_bins = pd.cut(audience['total_balance'], bins=8)
-                    st.bar_chart(balance_bins.value_counts().sort_index())
+                    st.markdown("**Regional Distribution**")
+                    region_counts = audience['region'].value_counts()
+                    st.bar_chart(region_counts)
             
             with tab2:
                 col1, col2 = st.columns(2)
                 with col1:
-                    st.markdown("**REGIONAL DISTRIBUTION**")
-                    region_counts = audience['region'].value_counts()
-                    st.bar_chart(region_counts)
+                    st.markdown("**Balance Distribution**")
+                    st.bar_chart(audience['total_balance'].value_counts(bins=10))
                 
                 with col2:
-                    st.markdown("**PRODUCT HOLDINGS**")
+                    st.markdown("**Product Holdings**")
                     product_counts = audience['product_holdings'].value_counts().sort_index()
                     st.bar_chart(product_counts)
             
             with tab3:
-                st.dataframe(audience[['customer_id', 'income_tier', 'region', 'total_balance', 'investment_portfolio', 'credit_score']])
+                st.dataframe(audience[['customer_id', 'age', 'income_segment', 'region', 'total_balance', 'product_holdings']])
             
-            st.markdown("<h4 style='color: #D4AF37; margin: 1.5rem 0 1rem 0;'>AUDIENCE EXPORT</h4>", unsafe_allow_html=True)
-            if st.button("📊 EXPORT CLIENT LIST", use_container_width=True):
+            st.markdown("##### 📤 Export Audience")
+            if st.button("Download Audience as CSV", use_container_width=True):
                 csv = audience.to_csv(index=False)
                 st.download_button(
-                    label="DOWNLOAD PREMIUM CLIENT DATA",
+                    label="Download CSV File",
                     data=csv,
-                    file_name=f"premium_audience_{datetime.now().strftime('%Y%m%d')}.csv",
+                    file_name=f"campaign_audience_{datetime.now().strftime('%Y%m%d')}.csv",
                     mime="text/csv",
                     use_container_width=True
                 )
 
-elif section == "📈 PERFORMANCE ANALYTICS":
-    st.markdown("<h2 class='section-header'>PERFORMANCE INTELLIGENCE</h2>", unsafe_allow_html=True)
+elif section == "📈 Campaign Analytics":
+    st.markdown("<h2 class='section-header'>📈 Campaign Performance Analytics</h2>", unsafe_allow_html=True)
     
     selected_campaign = st.selectbox(
-        "SELECT WEALTH PROGRAM:",
+        "Select Campaign for Analysis:",
         df_campaigns['campaign_name'].unique()
     )
     
@@ -486,170 +421,202 @@ elif section == "📈 PERFORMANCE ANALYTICS":
     
     with col1:
         total_revenue = campaign_data['revenue_generated'].sum()
-        st.metric("TOTAL REVENUE", f"€{total_revenue:,.0f}")
+        st.metric("Total Revenue", f"€{total_revenue:,.0f}")
     
     with col2:
         avg_conversion = campaign_data['conversion_rate'].mean() * 100
-        st.metric("CONVERSION RATE", f"{avg_conversion:.1f}%")
+        st.metric("Avg Conversion", f"{avg_conversion:.1f}%")
     
     with col3:
-        total_aum = campaign_data['aum_generated'].sum()
-        st.metric("AUM GENERATED", f"€{total_aum:,.0f}")
+        total_reach = campaign_data['actual_reach'].sum()
+        st.metric("Total Reach", f"{total_reach:,}")
     
     with col4:
         avg_cpa = campaign_data['cost_per_acquisition'].mean()
-        st.metric("COST PER CLIENT", f"€{avg_cpa:.0f}")
+        st.metric("Avg CPA", f"€{avg_cpa:.0f}")
     
-    st.markdown("<h3 class='subsection-header'>PERFORMANCE TRENDS</h3>", unsafe_allow_html=True)
+    st.markdown("#### 📊 Monthly Performance Trends")
     
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("**CONVERSION RATE TREND**")
+        st.markdown("**Conversion Rate Trend**")
         conv_data = campaign_data.set_index('month')[['conversion_rate']]
         conv_data['conversion_rate'] = conv_data['conversion_rate'] * 100
         st.line_chart(conv_data)
     
     with col2:
-        st.markdown("**REVENUE GENERATION**")
+        st.markdown("**Revenue Trend**")
         revenue_data = campaign_data.set_index('month')[['revenue_generated']]
         st.line_chart(revenue_data)
     
-    st.markdown("<h3 class='subsection-header'>PROGRAM COMPARISON</h3>", unsafe_allow_html=True)
+    st.markdown("#### 📈 Cross-Campaign Comparison")
     
     comparison_metric = st.selectbox(
-        "PERFORMANCE METRIC:", 
-        ["conversion_rate", "revenue_generated", "aum_generated", "cost_per_acquisition"]
+        "Select Metric for Comparison:", 
+        ["conversion_rate", "revenue_generated", "cost_per_acquisition", "actual_reach"]
     )
     
     campaign_comparison = df_campaigns.groupby('campaign_name')[comparison_metric].mean().sort_values(ascending=False)
     st.bar_chart(campaign_comparison)
 
-elif section == "🗺️ MARKET INTELLIGENCE":
-    st.markdown("<h2 class='section-header'>MARKET INTELLIGENCE</h2>", unsafe_allow_html=True)
+elif section == "🗺️ Geographic Analysis":
+    st.markdown("<h2 class='section-header'>🗺️ Geographic Analysis</h2>", unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("<h3 class='subsection-header'>SPANISH MARKET OVERVIEW</h3>", unsafe_allow_html=True)
+        st.markdown("#### 🇪🇸 Spain Regional Analysis")
         
-        st.markdown(create_premium_geographic_view(spanish_regions, "SPANISH REGIONAL PERFORMANCE"), unsafe_allow_html=True)
+        # Display Spain regions using custom HTML visualization
+        st.markdown(create_geographic_visualization(spanish_regions, "Spanish Regions Performance"), unsafe_allow_html=True)
         
-        st.markdown("<h3 class='subsection-header'>REGIONAL PERFORMANCE</h3>", unsafe_allow_html=True)
-        region_performance = pd.DataFrame([
-            {'Region': region, 'Conversion %': data['conversion'], 'AUM (M)': data['aum']/1000000} 
+        # Additional Spain metrics
+        st.markdown("#### 📊 Spain Performance Summary")
+        total_spain_customers = sum(region['customers'] for region in spanish_regions.values())
+        avg_spain_conversion = np.mean([region['conversion'] for region in spanish_regions.values()])
+        total_spain_revenue = sum(region['revenue'] for region in spanish_regions.values())
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Total Customers", f"{total_spain_customers:,}")
+        with col2:
+            st.metric("Avg Conversion", f"{avg_spain_conversion:.1f}%")
+        with col3:
+            st.metric("Total Revenue", f"€{total_spain_revenue:,}")
+        
+        # Spain regional chart
+        st.markdown("#### 📈 Regional Conversion Rates")
+        region_conv_data = pd.DataFrame([
+            {'region': region, 'conversion': data['conversion']} 
             for region, data in spanish_regions.items()
         ])
-        st.bar_chart(region_performance.set_index('Region')['Conversion %'])
+        st.bar_chart(region_conv_data.set_index('region'))
     
     with col2:
-        st.markdown("<h3 class='subsection-header'>EUROPEAN MARKETS</h3>", unsafe_allow_html=True)
+        st.markdown("#### 🇪🇺 European Market Analysis")
         
-        st.markdown(create_premium_geographic_view(european_countries, "EUROPEAN MARKET PRESENCE"), unsafe_allow_html=True)
+        # Display European countries using custom HTML visualization
+        st.markdown(create_geographic_visualization(european_countries, "European Markets Performance"), unsafe_allow_html=True)
         
-        st.markdown("<h3 class='subsection-header'>MARKET COMPARISON</h3>", unsafe_allow_html=True)
-        country_performance = pd.DataFrame([
-            {'Country': country, 'AUM (B)': data['aum']/1000000000, 'Clients': data['customers']} 
+        # Additional Europe metrics
+        st.markdown("#### 📊 Europe Performance Summary")
+        total_europe_customers = sum(country['customers'] for country in european_countries.values())
+        avg_europe_conversion = np.mean([country['conversion'] for country in european_countries.values()])
+        total_europe_revenue = sum(country['revenue'] for country in european_countries.values())
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Total Customers", f"{total_europe_customers:,}")
+        with col2:
+            st.metric("Avg Conversion", f"{avg_europe_conversion:.1f}%")
+        with col3:
+            st.metric("Total Revenue", f"€{total_europe_revenue:,}")
+        
+        # European countries chart
+        st.markdown("#### 📈 Country Conversion Rates")
+        country_conv_data = pd.DataFrame([
+            {'country': country, 'conversion': data['conversion']} 
             for country, data in european_countries.items()
         ])
-        st.bar_chart(country_performance.set_index('Country')['AUM (B)'])
+        st.bar_chart(country_conv_data.set_index('country'))
 
-elif section == "🚀 CAMPAIGN EXECUTION":
-    st.markdown("<h2 class='section-header'>CAMPAIGN EXECUTION PLATFORM</h2>", unsafe_allow_html=True)
+elif section == "🚀 Campaign Execution":
+    st.markdown("<h2 class='section-header'>🚀 Campaign Programming & Execution</h2>", unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("<h3 class='subsection-header'>CAMPAIGN ORCHESTRATION</h3>", unsafe_allow_html=True)
+        st.markdown("#### 📋 Campaign Setup")
         
-        campaign_name = st.text_input("CAMPAIGN NAME", "Q1_2024_Private_Wealth_Acquisition")
+        campaign_name = st.text_input("Campaign Name", "Q1_2024_CreditCard_Promo")
         
-        st.markdown("**EXECUTION PARAMETERS:**")
-        execution_date = st.date_input("LAUNCH DATE", datetime.now() + timedelta(days=7))
-        channel = st.selectbox("PRIMARY CHANNEL", ["Private Banking", "Wealth Advisor", "Digital Platform", "Family Office"])
-        priority = st.select_slider("PRIORITY LEVEL", ["Standard", "High", "VIP"], value="High")
+        st.markdown("**Execution Parameters:**")
+        execution_date = st.date_input("Execution Date", datetime.now() + timedelta(days=7))
+        channel = st.selectbox("Communication Channel", ["Email", "SMS", "Push Notification", "Direct Mail"])
+        priority = st.select_slider("Campaign Priority", ["Low", "Medium", "High"], value="Medium")
         
-        st.markdown("**AUDIENCE STRATEGY:**")
+        st.markdown("**Audience Selection:**")
         if 'filtered_audience' in st.session_state:
             audience_size = len(st.session_state.filtered_audience)
-            st.success(f"✅ PRE-QUALIFIED AUDIENCE: {audience_size:,} PREMIUM CLIENTS")
-            use_existing = st.checkbox("USE PRE-QUALIFIED AUDIENCE", value=True)
+            st.success(f"✅ Pre-generated audience available: {audience_size} customers")
+            use_existing = st.checkbox("Use pre-generated audience", value=True)
         else:
-            st.warning("⚠️ NO AUDIENCE GENERATED - CONFIGURE IN CLIENT ACQUISITION")
+            st.warning("⚠️ No audience generated yet")
             use_existing = False
         
         message_template = st.text_area(
-            "CLIENT COMMUNICATION", 
-            "Dear Valued Client,\n\nAs part of our exclusive Private Banking services, we would like to present a bespoke wealth management opportunity tailored to your portfolio requirements.\n\nOur dedicated wealth advisors are prepared to discuss how our [PROGRAM] can enhance your financial strategy and achieve your long-term objectives.\n\nWe look forward to the opportunity to serve you.\n\nSincerely,\nAccenture Private Banking",
-            height=120
+            "Campaign Message Template", 
+            "Estimado cliente, tenemos una oferta exclusiva para usted...\n\nComo cliente preferente, puede acceder a [producto] con condiciones especiales.\n\n¡No pierda esta oportunidad!",
+            height=100
         )
         
-        if st.button("🚀 DEPLOY CAMPAIGN", type="primary", use_container_width=True):
-            st.success(f"✅ CAMPAIGN '{campaign_name}' SCHEDULED FOR {execution_date}")
+        if st.button("🚀 Schedule Campaign", type="primary", use_container_width=True):
+            st.success(f"✅ Campaign '{campaign_name}' scheduled for {execution_date}")
             st.balloons()
             
-            st.markdown("<h4 style='color: #D4AF37; margin: 1.5rem 0 1rem 0;'>NEXT PHASES</h4>", unsafe_allow_html=True)
-            st.write("1. ✅ **CAMPAIGN SCHEDULED** - System deployment complete")
-            st.write("2. 📧 **ADVISOR NOTIFICATION** - Wealth team briefed")
-            st.write("3. 📊 **TRACKING ACTIVE** - Performance monitoring live")
-            st.write("4. 🎯 **CLIENT OUTREACH** - Advisor communications initiated")
+            st.markdown("**Next Steps:**")
+            st.write("1. ✅ Campaign scheduled in system")
+            st.write("2. 📧 Communications team notified")
+            st.write("3. 📊 Tracking codes generated")
+            st.write("4. 🎯 Ready for execution")
     
     with col2:
-        st.markdown("<h3 class='subsection-header'>EXECUTION DASHBOARD</h3>", unsafe_allow_html=True)
+        st.markdown("#### 📊 Execution Dashboard")
         
-        st.markdown("**CAMPAIGN PIPELINE**")
+        st.markdown("**Campaign Pipeline**")
         
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("SCHEDULED", "18", "+3")
+            st.metric("Scheduled", "12", "+2")
         with col2:
-            st.metric("ACTIVE", "7", "0")
+            st.metric("Ready", "5", "0")
         with col3:
-            st.metric("IN PROGRESS", "5", "-1")
+            st.metric("In Progress", "3", "-1")
         with col4:
-            st.metric("COMPLETED", "42", "+6")
+            st.metric("Completed", "24", "+4")
         
-        st.markdown("**RECENT EXECUTIONS**")
+        st.markdown("**Recent Campaign Executions**")
         
         execution_history = [
-            {"Program": "Private Wealth Q4", "Status": "✅ COMPLETED", "Date": "2024-01-15", "AUM": "€185M", "Conv Rate": "6.8%"},
-            {"Program": "Family Office", "Status": "🔄 ACTIVE", "Date": "2024-01-14", "AUM": "€92M", "Conv Rate": "8.2%"},
-            {"Program": "ESG Investing", "Status": "✅ COMPLETED", "Date": "2024-01-13", "AUM": "€128M", "Conv Rate": "5.9%"},
-            {"Program": "Wealth Transfer", "Status": "⏸️ PAUSED", "Date": "2024-01-12", "AUM": "€65M", "Conv Rate": "7.1%"},
+            {"Campaign": "Credit Card Q4", "Status": "✅ Completed", "Date": "2024-01-15", "Reach": "15,234", "Conv Rate": "4.2%"},
+            {"Campaign": "Personal Loan Promo", "Status": "🔄 In Progress", "Date": "2024-01-14", "Reach": "8,567", "Conv Rate": "3.8%"},
+            {"Campaign": "Mortgage Special", "Status": "✅ Completed", "Date": "2024-01-13", "Reach": "12,890", "Conv Rate": "2.1%"},
+            {"Campaign": "Investment Fund", "Status": "⏸️ Paused", "Date": "2024-01-12", "Reach": "5,432", "Conv Rate": "5.6%"},
         ]
         
         for campaign in execution_history:
             with st.container():
-                st.write(f"**{campaign['Program']}**")
+                st.write(f"**{campaign['Campaign']}**")
                 col1, col2, col3 = st.columns([1, 1, 2])
                 with col1:
                     st.write(campaign['Status'])
                 with col2:
                     st.write(campaign['Date'])
                 with col3:
-                    st.write(f"AUM: {campaign['AUM']} | Rate: {campaign['Conv Rate']}")
+                    st.write(f"Reach: {campaign['Reach']} | Conv: {campaign['Conv Rate']}")
                 st.divider()
 
-# Premium PySpark Integration
+# PySpark Integration Section
 st.sidebar.markdown("---")
-st.sidebar.markdown("<h3 style='color: #D4AF37; font-family: \"Helvetica Neue\"; font-weight: 700;'>⚡ PySpark DATA ENGINE</h3>", unsafe_allow_html=True)
+st.sidebar.markdown("<h3 style='color: white; font-family: Helvetica;'>⚡ PySpark Integration</h3>", unsafe_allow_html=True)
 
-if st.sidebar.button("ANALYZE CLIENT DATA"):
-    with st.sidebar.expander("DATA PROCESSING RESULTS"):
-        st.write("**PySpark Processing Complete:**")
-        st.write("✅ **CLIENT DATA** - 5,000 premium records analyzed")
-        st.write("✅ **WEALTH SEGMENTS** - Segmentation models applied")
-        st.write("✅ **PERFORMANCE ANALYTICS** - Campaign ROI calculated")
-        st.write("✅ **GEOGRAPHIC INTELLIGENCE** - Regional patterns identified")
-        st.write(f"📊 **TOTAL AUM ANALYZED**: €{sum(region['aum'] for region in spanish_regions.values()):,.0f}")
-        st.write(f"🎯 **PREMIUM CLIENTS**: {len(df_customers[df_customers['income_tier'] != 'Mass Affluent']):,}")
+if st.sidebar.button("Simulate PySpark Processing"):
+    with st.sidebar.expander("PySpark Results"):
+        st.write("**Data Processing with PySpark:**")
+        st.write("✅ Customer data loaded")
+        st.write("✅ Audience segmentation completed")
+        st.write("✅ Campaign analytics processed")
+        st.write("✅ Geographic analysis generated")
+        st.write(f"📊 Total records: {len(df_customers):,}")
+        st.write(f"🎯 Eligible for campaigns: {len(df_customers[df_customers['campaign_eligible']]):,}")
 
-# Premium Footer
+# Footer
 st.markdown("---")
 st.markdown(
-    "<p style='text-align: center; color: #D4AF37; font-family: \"Helvetica Neue\"; font-weight: 600; font-size: 1.1rem;'>"
-    "ACCENTURE PRIVATE BANKING ANALYTICS | BUILT WITH PySpark & STREAMLIT | "
-    "WEALTH MANAGEMENT INTELLIGENCE PLATFORM"
+    "<p style='text-align: center; color: white; font-family: Helvetica;'>"
+    "Built with Streamlit & PySpark for Accenture Banking Analytics | "
+    "Generación de Audiencias & Programación de Campañas"
     "</p>", 
     unsafe_allow_html=True
 )
