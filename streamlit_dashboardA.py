@@ -91,6 +91,14 @@ st.markdown("""
         margin: 10px 0;
         border-left: 4px solid #FF6B6B;
     }
+    /* Fix for chart labels */
+    .stChart > div > div > div > div {
+        color: white !important;
+    }
+    /* Ensure text in charts is visible */
+    .st-bw, .st-cm, .st-cn, .st-co, .st-cp {
+        color: white !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -200,7 +208,7 @@ def create_funnel_chart(funnel_data):
     return html_funnel
 
 # Create geographic visualization using HTML/CSS
-def create_geographic_visualization(regions_data, title, is_europe=False):
+def create_geographic_visualization(regions_data, title):
     html_content = f"""
     <div class="map-container">
         <h4 style="color: white; text-align: center; font-family: Helvetica;">{title}</h4>
@@ -386,7 +394,10 @@ elif section == "🎯 Audience Generation":
                 col1, col2 = st.columns(2)
                 with col1:
                     st.markdown("**Balance Distribution**")
-                    st.bar_chart(audience['total_balance'].value_counts(bins=10))
+                    # Create better binned data for balance distribution
+                    balance_bins = pd.cut(audience['total_balance'], bins=8)
+                    balance_data = balance_bins.value_counts().sort_index()
+                    st.bar_chart(balance_data)
                 
                 with col2:
                     st.markdown("**Product Holdings**")
@@ -406,6 +417,8 @@ elif section == "🎯 Audience Generation":
                     mime="text/csv",
                     use_container_width=True
                 )
+        else:
+            st.info("👆 Configure your audience criteria and click 'Generate Audience' to see results")
 
 elif section == "📈 Campaign Analytics":
     st.markdown("<h2 class='section-header'>📈 Campaign Performance Analytics</h2>", unsafe_allow_html=True)
