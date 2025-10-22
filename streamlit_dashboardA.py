@@ -66,7 +66,6 @@ st.markdown("""
         padding: 20px;
         border-radius: 10px;
         margin: 10px 0;
-        text-align: center;
     }
     .region-card {
         background: rgba(255, 255, 255, 0.15);
@@ -74,14 +73,6 @@ st.markdown("""
         border-radius: 10px;
         margin: 10px 0;
         border-left: 4px solid #FF6B6B;
-    }
-    /* Fix for chart labels */
-    .stChart > div > div > div > div {
-        color: white !important;
-    }
-    /* Ensure text in charts is visible */
-    .st-bw, .st-cm, .st-cn, .st-co, .st-cp {
-        color: white !important;
     }
     .finance-chart-container {
         background: rgba(255, 255, 255, 0.1);
@@ -156,10 +147,9 @@ def generate_sample_data():
     
     df_campaigns = pd.DataFrame(campaign_data)
     
-    # Financial performance data
-    months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    # Financial performance data - FIXED: Use numeric months for charts
     financial_data = {
-        'month': months,
+        'month': list(range(1, 13)),
         'revenue': np.random.randint(80000, 150000, 12),
         'profit': np.random.randint(20000, 60000, 12),
         'aum': np.random.randint(8000000, 12000000, 12),
@@ -180,27 +170,28 @@ df_financial = st.session_state.df_financial
 spanish_regions = st.session_state.spanish_regions
 european_countries = st.session_state.european_countries
 
-# Create geographic visualization using HTML/CSS
-def create_geographic_visualization(regions_data, title):
-    html_content = f"""
-    <div class="map-container">
-        <h4 style="color: white; text-align: center; font-family: Helvetica;">{title}</h4>
-        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 20px;">
-    """
+# Create geographic visualization using Streamlit components (no HTML)
+def display_geographic_data(regions_data, title):
+    st.markdown(f"#### {title}")
     
+    # Convert to DataFrame for better display
+    geo_data = []
     for region, data in regions_data.items():
-        html_content += f"""
-        <div class="region-card">
-            <h5 style="color: white; margin: 0; font-family: Helvetica;">{region}</h5>
-            <p style="color: white; margin: 5px 0; font-family: Helvetica;">Customers: {data['customers']:,}</p>
-            <p style="color: white; margin: 5px 0; font-family: Helvetica;">Conversion: {data['conversion']}%</p>
-            <p style="color: white; margin: 5px 0; font-family: Helvetica;">Revenue: €{data['revenue']:,}</p>
-            <p style="color: white; margin: 5px 0; font-family: Helvetica;">AUM: €{data['aum']:,}</p>
-        </div>
-        """
+        geo_data.append({
+            'Region': region,
+            'Customers': data['customers'],
+            'Conversion %': data['conversion'],
+            'Revenue (€)': f"€{data['revenue']:,}",
+            'AUM (€)': f"€{data['aum']:,}"
+        })
     
-    html_content += "</div></div>"
-    return html_content
+    df_geo = pd.DataFrame(geo_data)
+    st.dataframe(df_geo, use_container_width=True)
+    
+    # Display conversion rates as a simple bar chart
+    st.markdown(f"**{title} - Conversion Rates**")
+    conv_data = pd.DataFrame([{'Region': k, 'Conversion %': v['conversion']} for k, v in regions_data.items()])
+    st.bar_chart(conv_data.set_index('Region'))
 
 # Sidebar navigation
 st.sidebar.markdown("<h1 style='color: white; font-family: Helvetica;'>📊 Navigation</h1>", unsafe_allow_html=True)
@@ -255,22 +246,19 @@ if section == "🏠 Dashboard Overview":
     
     with col1:
         st.markdown("#### 📊 Customer Data Table")
-        st.dataframe(df_customers[['customer_id', 'age', 'income_segment', 'region', 'total_balance', 'product_holdings']].head(10))
+        st.dataframe(df_customers[['customer_id', 'age', 'income_segment', 'region', 'total_balance', 'product_holdings']].head(8))
         
         st.markdown("#### 💰 Financial Performance")
-        st.markdown('<div class="finance-chart-container">', unsafe_allow_html=True)
         
-        # Revenue trend
+        # Revenue trend - FIXED: Use numeric data
         st.markdown("**Monthly Revenue Trend**")
-        revenue_chart_data = df_financial.set_index('month')[['revenue']]
-        st.line_chart(revenue_chart_data)
+        revenue_data = df_financial[['month', 'revenue']].set_index('month')
+        st.line_chart(revenue_data)
         
         # Profit trend
         st.markdown("**Monthly Profit Trend**")
-        profit_chart_data = df_financial.set_index('month')[['profit']]
-        st.line_chart(profit_chart_data)
-        
-        st.markdown('</div>', unsafe_allow_html=True)
+        profit_data = df_financial[['month', 'profit']].set_index('month')
+        st.line_chart(profit_data)
     
     with col2:
         st.markdown("#### 📊 Customer Distribution by Income Segment")
@@ -289,12 +277,8 @@ if section == "🏠 Dashboard Overview":
                 st.metric("Rate", f"{rate*100:.1f}%")
         
         st.markdown("#### 📊 Assets Under Management")
-        aum_data = df_financial.set_index('month')[['aum']]
+        aum_data = df_financial[['month', 'aum']].set_index('month')
         st.area_chart(aum_data)
-        
-        st.markdown("#### 🌍 Regional Distribution")
-        region_dist = df_customers['region'].value_counts()
-        st.dataframe(region_dist)
 
 elif section == "🎯 Audience Generation":
     st.markdown("<h2 class='section-header'>🎯 Campaign Audience Generation</h2>", unsafe_allow_html=True)
@@ -373,13 +357,12 @@ elif section == "🎯 Audience Generation":
             with tab2:
                 col1, col2 = st.columns(2)
                 with col1:
-                    st.markdown("**Balance Distribution**")
-                    # Create proper balance ranges for better visualization
-                    balance_ranges = ['€0-€2,000', '€2,000-€4,000', '€4,000-€6,000', '€6,000-€8,000', '€8,000+']
+                    st.markdown("**Balance Ranges**")
+                    # Create simple balance ranges
                     balance_data = pd.cut(audience['total_balance'], 
                                         bins=[0, 2000, 4000, 6000, 8000, 20000], 
-                                        labels=balance_ranges)
-                    balance_counts = balance_data.value_counts().reindex(balance_ranges)
+                                        labels=['0-2K', '2K-4K', '4K-6K', '6K-8K', '8K+'])
+                    balance_counts = balance_data.value_counts()
                     st.bar_chart(balance_counts)
                 
                 with col2:
@@ -388,7 +371,7 @@ elif section == "🎯 Audience Generation":
                     st.bar_chart(product_counts)
             
             with tab3:
-                st.dataframe(audience[['customer_id', 'age', 'income_segment', 'region', 'total_balance', 'product_holdings']])
+                st.dataframe(audience[['customer_id', 'age', 'income_segment', 'region', 'total_balance', 'product_holdings']].head(10))
             
             st.markdown("##### 📤 Export Audience")
             if st.button("Download Audience as CSV", use_container_width=True):
@@ -437,13 +420,13 @@ elif section == "📈 Campaign Analytics":
     
     with col1:
         st.markdown("**Conversion Rate Trend**")
-        conv_data = campaign_data.set_index('month')[['conversion_rate']]
+        conv_data = campaign_data[['month', 'conversion_rate']].set_index('month')
         conv_data['conversion_rate'] = conv_data['conversion_rate'] * 100
         st.line_chart(conv_data)
     
     with col2:
         st.markdown("**Revenue Trend**")
-        revenue_data = campaign_data.set_index('month')[['revenue_generated']]
+        revenue_data = campaign_data[['month', 'revenue_generated']].set_index('month')
         st.line_chart(revenue_data)
     
     st.markdown("#### 📈 Cross-Campaign Comparison")
@@ -464,8 +447,8 @@ elif section == "🗺️ Geographic Analysis":
     with col1:
         st.markdown("#### 🇪🇸 Spain Regional Analysis")
         
-        # Display Spain regions using custom HTML visualization
-        st.markdown(create_geographic_visualization(spanish_regions, "Spanish Regions Performance"), unsafe_allow_html=True)
+        # Display Spain regions using fixed function
+        display_geographic_data(spanish_regions, "Spanish Regions Performance")
         
         # Additional Spain metrics
         st.markdown("#### 📊 Spain Performance Summary")
@@ -483,20 +466,12 @@ elif section == "🗺️ Geographic Analysis":
             st.metric("Total Revenue", f"€{total_spain_revenue:,}")
         with col4:
             st.metric("Total AUM", f"€{total_spain_aum:,}")
-        
-        # Spain regional chart
-        st.markdown("#### 📈 Regional Conversion Rates")
-        region_conv_data = pd.DataFrame([
-            {'region': region, 'conversion': data['conversion']} 
-            for region, data in spanish_regions.items()
-        ])
-        st.bar_chart(region_conv_data.set_index('region'))
     
     with col2:
         st.markdown("#### 🇪🇺 European Market Analysis")
         
-        # Display European countries using custom HTML visualization
-        st.markdown(create_geographic_visualization(european_countries, "European Markets Performance"), unsafe_allow_html=True)
+        # Display European countries using fixed function
+        display_geographic_data(european_countries, "European Markets Performance")
         
         # Additional Europe metrics
         st.markdown("#### 📊 Europe Performance Summary")
@@ -514,14 +489,6 @@ elif section == "🗺️ Geographic Analysis":
             st.metric("Total Revenue", f"€{total_europe_revenue:,}")
         with col4:
             st.metric("Total AUM", f"€{total_europe_aum:,}")
-        
-        # European countries chart
-        st.markdown("#### 📈 Country Conversion Rates")
-        country_conv_data = pd.DataFrame([
-            {'country': country, 'conversion': data['conversion']} 
-            for country, data in european_countries.items()
-        ])
-        st.bar_chart(country_conv_data.set_index('country'))
 
 elif section == "🚀 Campaign Execution":
     st.markdown("<h2 class='section-header'>🚀 Campaign Programming & Execution</h2>", unsafe_allow_html=True)
