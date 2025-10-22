@@ -1,654 +1,626 @@
 import streamlit as st
+import requests
 import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+from datetime import datetime
 import numpy as np
-from datetime import datetime, timedelta
-import io
-import pydeck as pdk
+import math
 
-# Set page configuration with royal blue theme
+# Page configuration
 st.set_page_config(
-    page_title="Banking Campaign Analytics",
-    page_icon="📊",
+    page_title="GeoWeather Intelligence",
+    page_icon="🌍",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for royal blue background and Helvetica font
-st.markdown("""
+# Advanced Color Theory Palette - Earth & Sky inspired
+COLOR_THEORY = {
+    # Primary Earth Tones
+    "earth_green": "#2E8B57",      # Sea Green - stability, growth
+    "deep_blue": "#1E6FA9",        # Trust, calmness
+    "warm_amber": "#FF8C42",       # Energy, alerts
+    "rich_clay": "#D35400",        # Strength, earthquakes
+    
+    # Secondary Nature Palette
+    "forest_green": "#228B22",     # Nature, safety
+    "sky_blue": "#4682B4",         # Openness, weather
+    "sunset_orange": "#FF6B35",    # Warning, attention
+    "storm_gray": "#2C3E50",       # Depth, data
+    
+    # Background & UI
+    "cream_white": "#FDF6E3",      # Warm background
+    "card_white": "#FFFFFF",       # Clean cards
+    "text_dark": "#2C3E50",        # Readable text
+    "text_light": "#7F8C8D"        # Secondary text
+}
+
+# Custom CSS with advanced styling
+st.markdown(f"""
 <style>
-    .main {
-        background-color: #1E3A8A;
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+    
+    * {{
+        font-family: 'Inter', sans-serif;
+    }}
+    
+    .main {{
+        background: linear-gradient(135deg, {COLOR_THEORY['cream_white']}, #E8F4F8);
+    }}
+    
+    .stApp {{
+        background: linear-gradient(135deg, {COLOR_THEORY['cream_white']}, #E8F4F8);
+    }}
+    
+    .earth-kpi {{
+        background: linear-gradient(135deg, {COLOR_THEORY['earth_green']}, {COLOR_THEORY['forest_green']});
         color: white;
-        font-family: 'Helvetica', Arial, sans-serif;
-    }
-    .stApp {
-        background: linear-gradient(135deg, #1E3A8A 0%, #3730A3 50%, #1E40AF 100%);
-        font-family: 'Helvetica', Arial, sans-serif;
-    }
-    .main-header {
-        font-size: 2.8rem;
-        color: white;
-        font-weight: bold;
-        margin-bottom: 1rem;
-        font-family: 'Helvetica', Arial, sans-serif;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-    }
-    .section-header {
-        font-size: 1.8rem;
-        color: white;
-        font-weight: bold;
-        margin-bottom: 1rem;
-        font-family: 'Helvetica', Arial, sans-serif;
-    }
-    .metric-card {
-        background: rgba(255, 255, 255, 0.1);
-        backdrop-filter: blur(10px);
-        padding: 1.5rem;
+        padding: 25px;
         border-radius: 15px;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        margin-bottom: 1rem;
-        color: white;
-    }
-    .stMetric {
-        background: rgba(255, 255, 255, 0.15);
-        padding: 1rem;
-        border-radius: 10px;
-        border: 1px solid rgba(255, 255, 255, 0.3);
-    }
-    .sidebar .sidebar-content {
-        background: rgba(30, 58, 138, 0.9);
-        backdrop-filter: blur(10px);
-    }
-    div[data-testid="stSidebarNav"] {
-        background: rgba(255, 255, 255, 0.1);
-    }
-    .funnel-container {
-        background: rgba(255, 255, 255, 0.1);
-        padding: 20px;
-        border-radius: 10px;
-        margin: 10px 0;
-    }
-    .funnel-stage {
-        background: linear-gradient(90deg, #FF6B6B, #4ECDC4);
-        margin: 10px 0;
-        padding: 15px;
-        border-radius: 5px;
         text-align: center;
+        box-shadow: 0 8px 20px rgba(46, 139, 87, 0.3);
+        margin: 10px;
+        border: none;
+    }}
+    
+    .weather-kpi {{
+        background: linear-gradient(135deg, {COLOR_THEORY['deep_blue']}, {COLOR_THEORY['sky_blue']});
         color: white;
-        font-weight: bold;
-    }
+        padding: 25px;
+        border-radius: 15px;
+        text-align: center;
+        box-shadow: 0 8px 20px rgba(30, 111, 169, 0.3);
+        margin: 10px;
+        border: none;
+    }}
+    
+    .alert-kpi {{
+        background: linear-gradient(135deg, {COLOR_THEORY['warm_amber']}, {COLOR_THEORY['rich_clay']});
+        color: white;
+        padding: 25px;
+        border-radius: 15px;
+        text-align: center;
+        box-shadow: 0 8px 20px rgba(255, 107, 53, 0.3);
+        margin: 10px;
+        border: none;
+    }}
+    
+    .data-card {{
+        background: {COLOR_THEORY['card_white']};
+        padding: 25px;
+        border-radius: 15px;
+        box-shadow: 0 6px 15px rgba(44, 62, 80, 0.1);
+        margin: 15px 0;
+        border-left: 5px solid {COLOR_THEORY['earth_green']};
+        transition: transform 0.3s ease;
+    }}
+    
+    .data-card:hover {{
+        transform: translateY(-5px);
+        box-shadow: 0 12px 25px rgba(44, 62, 80, 0.15);
+    }}
+    
+    .alert-card {{
+        border-left: 5px solid {COLOR_THEORY['warm_amber']};
+        background: linear-gradient(90deg, #FFF9F5, {COLOR_THEORY['card_white']});
+    }}
+    
+    .section-header {{
+        color: {COLOR_THEORY['storm_gray']};
+        border-bottom: 3px solid {COLOR_THEORY['earth_green']};
+        padding-bottom: 12px;
+        margin: 30px 0 20px 0;
+        font-weight: 700;
+        font-size: 1.8rem;
+    }}
+    
+    .metric-value {{
+        font-size: 2.2rem !important;
+        font-weight: 700 !important;
+        margin: 10px 0 !important;
+    }}
+    
+    .sidebar .sidebar-content {{
+        background: linear-gradient(180deg, {COLOR_THEORY['storm_gray']}, {COLOR_THEORY['deep_blue']});
+        color: white;
+    }}
 </style>
 """, unsafe_allow_html=True)
 
-# Generate enhanced sample data with geographic information
-def generate_sample_data():
-    np.random.seed(42)
+class GeoWeatherIntelligence:
+    def __init__(self):
+        self.base_url = "https://panditadata.com"
+        
+    def get_city_coordinates(self, city_name):
+        """Get latitude and longitude for a city"""
+        try:
+            response = requests.get(f"{self.base_url}/weather/{city_name}", timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                return data.get('lat'), data.get('lon')
+            return None, None
+        except Exception as e:
+            st.error(f"Error fetching coordinates: {e}")
+            return None, None
     
-    # Spanish regions and coordinates
-    spanish_regions = {
-        'Madrid': {'lat': 40.4168, 'lon': -3.7038, 'customers': 180},
-        'Cataluña': {'lat': 41.3874, 'lon': 2.1686, 'customers': 160},
-        'Andalucía': {'lat': 37.3891, 'lon': -5.9845, 'customers': 150},
-        'Valencia': {'lat': 39.4699, 'lon': -0.3763, 'customers': 120},
-        'País Vasco': {'lat': 43.2630, 'lon': -2.9350, 'customers': 90},
-        'Galicia': {'lat': 42.5751, 'lon': -8.1339, 'customers': 80},
-        'Castilla y León': {'lat': 41.8357, 'lon': -4.3976, 'customers': 85},
-        'Aragón': {'lat': 41.6488, 'lon': -0.8891, 'customers': 70},
-        'Canarias': {'lat': 28.2916, 'lon': -16.6291, 'customers': 65}
-    }
+    def get_earthquake_data(self):
+        """Get earthquake data"""
+        try:
+            response = requests.get(f"{self.base_url}/earthquakesd", timeout=10)
+            if response.status_code == 200:
+                return response.json()
+            return []
+        except Exception as e:
+            st.error(f"Error fetching earthquake data: {e}")
+            return []
     
-    # European countries data
-    european_countries = {
-        'Spain': {'lat': 40.4637, 'lon': -3.7492, 'customers': 1000, 'conversion': 4.2},
-        'France': {'lat': 46.6034, 'lon': 1.8883, 'customers': 850, 'conversion': 3.8},
-        'Germany': {'lat': 51.1657, 'lon': 10.4515, 'customers': 920, 'conversion': 4.5},
-        'Italy': {'lat': 41.8719, 'lon': 12.5674, 'customers': 780, 'conversion': 3.9},
-        'UK': {'lat': 55.3781, 'lon': -3.4360, 'customers': 890, 'conversion': 4.1},
-        'Portugal': {'lat': 39.3999, 'lon': -8.2245, 'customers': 450, 'conversion': 3.5}
-    }
+    def get_severe_alerts(self):
+        """Get severe weather alerts"""
+        try:
+            response = requests.get(f"{self.base_url}/api/severe_alerts", timeout=10)
+            if response.status_code == 200:
+                return response.json()
+            return []
+        except Exception as e:
+            st.error(f"Error fetching severe alerts: {e}")
+            return []
     
-    # Customer base data
-    customers = []
-    for i in range(1000):
-        region = np.random.choice(list(spanish_regions.keys()))
-        customers.append({
-            'customer_id': f'CUST_{i:04d}',
-            'age': np.random.randint(18, 70),
-            'income_segment': np.random.choice(['Low', 'Medium', 'High'], p=[0.3, 0.5, 0.2]),
-            'product_holdings': np.random.randint(1, 6),
-            'last_transaction_days': np.random.randint(1, 90),
-            'total_balance': np.random.normal(5000, 3000),
-            'risk_profile': np.random.choice(['Low', 'Medium', 'High'], p=[0.6, 0.3, 0.1]),
-            'region': region,
-            'latitude': spanish_regions[region]['lat'] + np.random.uniform(-0.5, 0.5),
-            'longitude': spanish_regions[region]['lon'] + np.random.uniform(-0.5, 0.5),
-            'campaign_eligible': np.random.choice([True, False], p=[0.7, 0.3])
-        })
-    
-    df_customers = pd.DataFrame(customers)
-    df_customers['total_balance'] = df_customers['total_balance'].clip(lower=0)
-    
-    # Campaign performance data
-    campaigns = ['Credit Card Premium', 'Personal Loan', 'Mortgage', 'Investment Fund', 'Insurance']
-    campaign_data = []
-    
-    for campaign in campaigns:
-        for month in range(1, 13):
-            campaign_data.append({
-                'campaign_name': campaign,
-                'month': month,
-                'target_audience': np.random.randint(500, 2000),
-                'actual_reach': np.random.randint(400, 1900),
-                'conversion_rate': np.random.uniform(0.02, 0.15),
-                'revenue_generated': np.random.uniform(5000, 50000),
-                'cost_per_acquisition': np.random.uniform(50, 200)
-            })
-    
-    df_campaigns = pd.DataFrame(campaign_data)
-    
-    # Funnel data
-    funnel_data = {
-        'stage': ['Awareness', 'Interest', 'Consideration', 'Conversion', 'Loyalty'],
-        'count': [10000, 6500, 3200, 1500, 800],
-        'percentage': [100, 65, 32, 15, 8]
-    }
-    df_funnel = pd.DataFrame(funnel_data)
-    
-    return df_customers, df_campaigns, df_funnel, spanish_regions, european_countries
+    def get_weather_data(self):
+        """Get general weather data"""
+        try:
+            response = requests.get(f"{self.base_url}/weather_data", timeout=10)
+            if response.status_code == 200:
+                return response.json()
+            return []
+        except Exception as e:
+            st.error(f"Error fetching weather data: {e}")
+            return []
 
-# Initialize session state for data
-if 'data_loaded' not in st.session_state:
-    st.session_state.df_customers, st.session_state.df_campaigns, st.session_state.df_funnel, st.session_state.spanish_regions, st.session_state.european_countries = generate_sample_data()
-    st.session_state.data_loaded = True
-
-df_customers = st.session_state.df_customers
-df_campaigns = st.session_state.df_campaigns
-df_funnel = st.session_state.df_funnel
-spanish_regions = st.session_state.spanish_regions
-european_countries = st.session_state.european_countries
-
-# Create funnel chart using HTML/CSS
-def create_funnel_chart(funnel_data):
-    html_funnel = """
-    <div class="funnel-container">
-        <h4 style="color: white; text-align: center; font-family: Helvetica;">Conversion Funnel</h4>
-    """
+def create_custom_chart(chart_type, data, title, colors):
+    """Create custom matplotlib charts with enhanced styling"""
+    fig, ax = plt.subplots(figsize=(10, 6), facecolor=COLOR_THEORY['card_white'])
     
-    colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7']
+    # Set style
+    ax.set_facecolor(COLOR_THEORY['card_white'])
+    fig.patch.set_facecolor(COLOR_THEORY['card_white'])
     
-    for i, (_, row) in enumerate(funnel_data.iterrows()):
-        width = row['percentage'] * 2  # Scale for visual effect
-        html_funnel += f"""
-        <div class="funnel-stage" style="background: linear-gradient(90deg, {colors[i]}, {colors[(i+1)%len(colors)]}); width: {width}%; margin: 0 auto;">
-            {row['stage']}: {row['count']:,} customers ({row['percentage']}%)
+    if chart_type == "bar":
+        bars = ax.bar(range(len(data)), list(data.values()), 
+                     color=colors, alpha=0.8, edgecolor=COLOR_THEORY['storm_gray'], linewidth=1)
+        ax.set_xticks(range(len(data)))
+        ax.set_xticklabels(list(data.keys()), rotation=45)
+        
+        # Add value labels on bars
+        for bar in bars:
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2., height,
+                   f'{height:.1f}', ha='center', va='bottom', fontweight='bold')
+    
+    elif chart_type == "line":
+        ax.plot(list(data.keys()), list(data.values()), 
+               color=colors[0], linewidth=3, marker='o', markersize=8)
+        ax.fill_between(list(data.keys()), list(data.values()), 
+                       alpha=0.3, color=colors[0])
+    
+    elif chart_type == "pie":
+        wedges, texts, autotexts = ax.pie(data.values(), labels=data.keys(), 
+                                         autopct='%1.1f%%', colors=colors,
+                                         startangle=90, shadow=True)
+        for autotext in autotexts:
+            autotext.set_color('white')
+            autotext.set_fontweight('bold')
+    
+    # Styling
+    ax.set_title(title, fontsize=16, fontweight='bold', 
+                color=COLOR_THEORY['storm_gray'], pad=20)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_color(COLOR_THEORY['text_light'])
+    ax.spines['bottom'].set_color(COLOR_THEORY['text_light'])
+    ax.tick_params(colors=COLOR_THEORY['text_light'])
+    ax.grid(True, alpha=0.3, linestyle='--')
+    
+    plt.tight_layout()
+    return fig
+
+def create_2d_earthquake_map(earthquakes, center_lat, center_lon, city_name):
+    """Create a 2D earthquake map visualization"""
+    if not earthquakes:
+        return None
+    
+    fig, ax = plt.subplots(figsize=(12, 8), facecolor=COLOR_THEORY['card_white'])
+    fig.patch.set_facecolor(COLOR_THEORY['card_white'])
+    ax.set_facecolor('#E8F4F8')
+    
+    # Plot earthquakes
+    lats, lons, mags = [], [], []
+    for eq in earthquakes[:50]:  # Limit to 50 for clarity
+        if 'lat' in eq and 'lon' in eq and 'magnitude' in eq:
+            lats.append(float(eq['lat']))
+            lons.append(float(eq['lon']))
+            mags.append(float(eq['magnitude']))
+    
+    if not lats:
+        return None
+    
+    # Create scatter plot with size based on magnitude
+    scatter = ax.scatter(lons, lats, s=[m*20 for m in mags], 
+                        c=mags, cmap='YlOrRd', alpha=0.7, 
+                        edgecolors=COLOR_THEORY['storm_gray'], linewidth=1)
+    
+    # Add city center
+    ax.scatter([center_lon], [center_lat], color=COLOR_THEORY['deep_blue'], 
+              s=200, marker='*', edgecolor='white', linewidth=2, 
+              label=f'Center: {city_name}')
+    
+    # Add labels for major earthquakes
+    for i, (lat, lon, mag) in enumerate(zip(lats, lons, mags)):
+        if mag > 5.0:  # Label only major earthquakes
+            ax.annotate(f'M{mag}', (lon, lat), xytext=(5, 5), 
+                       textcoords='offset points', fontweight='bold',
+                       color=COLOR_THEORY['rich_clay'])
+    
+    # Styling
+    ax.set_title(f'Earthquake Distribution - {city_name}', 
+                fontsize=18, fontweight='bold', color=COLOR_THEORY['storm_gray'], pad=20)
+    ax.set_xlabel('Longitude', fontweight='bold', color=COLOR_THEORY['text_light'])
+    ax.set_ylabel('Latitude', fontweight='bold', color=COLOR_THEORY['text_light'])
+    ax.legend()
+    ax.grid(True, alpha=0.3, linestyle='--')
+    
+    # Add colorbar
+    cbar = plt.colorbar(scatter, ax=ax)
+    cbar.set_label('Magnitude', fontweight='bold', color=COLOR_THEORY['text_light'])
+    
+    plt.tight_layout()
+    return fig
+
+def main():
+    # Initialize dashboard
+    dashboard = GeoWeatherIntelligence()
+    
+    # Sidebar with enhanced design
+    with st.sidebar:
+        st.markdown(f"""
+        <div style='text-align: center; padding: 20px 0;'>
+            <h1 style='color: white; margin: 0;'>🌍</h1>
+            <h2 style='color: white; margin: 10px 0;'>GeoWeather Intelligence</h2>
+            <p style='color: #BDC3C7;'>Real-time Earth & Weather Analytics</p>
         </div>
-        """
-    
-    html_funnel += "</div>"
-    return html_funnel
-
-# Sidebar navigation
-st.sidebar.markdown("<h1 style='color: white; font-family: Helvetica;'>📊 Navigation</h1>", unsafe_allow_html=True)
-section = st.sidebar.radio("", 
-    ["🏠 Dashboard Overview", "🎯 Audience Generation", "📈 Campaign Analytics", "🗺️ Geographic Analysis", "🚀 Campaign Execution"])
-
-# Main header
-st.markdown("<h1 class='main-header'>🏦 Banking Campaign Analytics Dashboard</h1>", unsafe_allow_html=True)
-st.markdown("<p style='color: white; font-size: 1.2rem; font-family: Helvetica;'>Generación de Audiencias & Programación de Campañas con PySpark</p>", unsafe_allow_html=True)
-
-if section == "🏠 Dashboard Overview":
-    st.markdown("<h2 class='section-header'>📈 Executive Summary</h2>", unsafe_allow_html=True)
-    
-    # KPI Metrics
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        total_customers = len(df_customers)
-        eligible_customers = len(df_customers[df_customers['campaign_eligible']])
-        st.metric(
-            label="Total Customers", 
-            value=f"{total_customers:,}",
-            delta=f"{eligible_customers} eligible"
-        )
-    
-    with col2:
-        avg_balance = df_customers['total_balance'].mean()
-        st.metric(
-            label="Average Balance", 
-            value=f"€{avg_balance:,.0f}",
-            delta="+5.2%"
-        )
-    
-    with col3:
-        total_revenue = df_campaigns['revenue_generated'].sum()
-        st.metric(
-            label="Total Revenue", 
-            value=f"€{total_revenue:,.0f}",
-            delta="+12.3%"
-        )
-    
-    with col4:
-        avg_conversion = df_campaigns['conversion_rate'].mean() * 100
-        st.metric(
-            label="Avg Conversion Rate", 
-            value=f"{avg_conversion:.1f}%",
-            delta="+2.1%"
-        )
-    
-    # Charts and Data Table
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("#### 📊 Customer Data Table")
-        st.dataframe(df_customers[['customer_id', 'age', 'income_segment', 'region', 'total_balance', 'product_holdings']].head(10))
+        """, unsafe_allow_html=True)
         
-        st.markdown("#### 📈 Funnel Analysis")
-        # Display HTML funnel
-        st.markdown(create_funnel_chart(df_funnel), unsafe_allow_html=True)
+        st.markdown("---")
         
-        # Additional funnel metrics
-        col_f1, col_f2, col_f3 = st.columns(3)
-        with col_f1:
-            st.metric("Awareness", "10,000")
-        with col_f2:
-            st.metric("Conversion", "1,500")
-        with col_f3:
-            st.metric("Overall Rate", "15%")
+        # City input with styling
+        st.markdown("<h3 style='color: white;'>📍 Location Setup</h3>", unsafe_allow_html=True)
+        city_name = st.text_input("Enter City Name", "London", key="city_input")
+        
+        if st.button("🚀 Get GeoWeather Data", use_container_width=True, type="primary"):
+            with st.spinner("🛰️ Scanning satellite data..."):
+                lat, lon = dashboard.get_city_coordinates(city_name)
+                if lat and lon:
+                    st.session_state.update({
+                        'city_name': city_name,
+                        'lat': lat,
+                        'lon': lon,
+                        'earthquake_data': dashboard.get_earthquake_data(),
+                        'severe_alerts': dashboard.get_severe_alerts(),
+                        'weather_data': dashboard.get_weather_data(),
+                        'data_loaded': True
+                    })
+                    st.success("✅ Data loaded successfully!")
+                else:
+                    st.error("❌ Could not find coordinates for the specified city")
+        
+        st.markdown("---")
+        
+        # Navigation
+        st.markdown("<h3 style='color: white;'>🧭 Navigation</h3>", unsafe_allow_html=True)
+        page = st.radio("Select View", 
+                       ["📊 Overview Dashboard", "📈 Analytics & Charts", "📋 Raw Data Explorer"],
+                       label_visibility="collapsed")
+        
+        st.markdown("---")
+        st.markdown("""
+        <div style='color: #BDC3C7; font-size: 0.8rem;'>
+        <p><strong>🌐 Data Sources:</strong></p>
+        <ul>
+            <li>Seismic Activity API</li>
+            <li>Weather Intelligence</li>
+            <li>Alert Systems</li>
+        </ul>
+        <p style='margin-top: 20px;'>Real-time monitoring & analytics</p>
+        </div>
+        """, unsafe_allow_html=True)
     
-    with col2:
-        st.markdown("#### 📊 Customer Distribution by Income Segment")
-        income_dist = df_customers['income_segment'].value_counts()
-        st.bar_chart(income_dist)
-        
-        st.markdown("#### 📈 Campaign Performance Overview")
-        campaign_perf = df_campaigns.groupby('campaign_name')['conversion_rate'].mean().sort_values(ascending=False)
-        
-        # Display campaign performance as metrics
-        for campaign, rate in campaign_perf.items():
-            col_c1, col_c2 = st.columns([3, 1])
-            with col_c1:
-                st.write(f"**{campaign}**")
-            with col_c2:
-                st.metric("Rate", f"{rate*100:.1f}%")
-        
-        st.markdown("#### 🌍 Regional Distribution")
-        region_dist = df_customers['region'].value_counts()
-        st.dataframe(region_dist)
-
-elif section == "🎯 Audience Generation":
-    st.markdown("<h2 class='section-header'>🎯 Campaign Audience Generation</h2>", unsafe_allow_html=True)
-    
-    col1, col2 = st.columns([1, 2])
-    
-    with col1:
-        st.markdown("#### 🔧 Audience Criteria")
-        
-        campaign_type = st.selectbox(
-            "Select Campaign Type:",
-            ["Credit Card Premium", "Personal Loan", "Mortgage", "Investment Fund", "Insurance"]
-        )
-        
-        st.markdown("**Audience Filters:**")
-        min_balance = st.slider("Minimum Balance (€)", 0, 10000, 1000, step=500)
-        max_age = st.slider("Maximum Age", 18, 70, 65)
-        income_levels = st.multiselect(
-            "Income Segments:",
-            ["Low", "Medium", "High"],
-            default=["Medium", "High"]
-        )
-        
-        regions = st.multiselect(
-            "Regions:",
-            df_customers['region'].unique(),
-            default=df_customers['region'].unique()
-        )
-        
-        min_products = st.slider("Minimum Products Held", 1, 5, 1)
-        
-        if st.button("🔍 Generate Audience", type="primary", use_container_width=True):
-            filtered_audience = df_customers[
-                (df_customers['total_balance'] >= min_balance) &
-                (df_customers['age'] <= max_age) &
-                (df_customers['income_segment'].isin(income_levels)) &
-                (df_customers['region'].isin(regions)) &
-                (df_customers['product_holdings'] >= min_products) &
-                (df_customers['campaign_eligible'])
-            ].copy()
-            st.session_state.filtered_audience = filtered_audience
-            st.success(f"✅ Audience generated: {len(filtered_audience)} customers")
-    
-    with col2:
-        st.markdown("#### 📋 Generated Audience Summary")
-        
-        if 'filtered_audience' in st.session_state and len(st.session_state.filtered_audience) > 0:
-            audience = st.session_state.filtered_audience
-            
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("Audience Size", f"{len(audience):,}")
-            with col2:
-                st.metric("Avg Balance", f"€{audience['total_balance'].mean():,.0f}")
-            with col3:
-                st.metric("Avg Products", f"{audience['product_holdings'].mean():.1f}")
-            with col4:
-                st.metric("Avg Age", f"{audience['age'].mean():.1f}")
-            
-            st.markdown("##### 📊 Audience Composition")
-            
-            tab1, tab2, tab3 = st.tabs(["Demographics", "Financial", "Raw Data"])
-            
-            with tab1:
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.markdown("**Income Distribution**")
-                    income_counts = audience['income_segment'].value_counts()
-                    st.bar_chart(income_counts)
-                
-                with col2:
-                    st.markdown("**Regional Distribution**")
-                    region_counts = audience['region'].value_counts()
-                    st.bar_chart(region_counts)
-            
-            with tab2:
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.markdown("**Balance Distribution**")
-                    st.bar_chart(audience['total_balance'].value_counts(bins=10))
-                
-                with col2:
-                    st.markdown("**Product Holdings**")
-                    product_counts = audience['product_holdings'].value_counts().sort_index()
-                    st.bar_chart(product_counts)
-            
-            with tab3:
-                st.dataframe(audience[['customer_id', 'age', 'income_segment', 'region', 'total_balance', 'product_holdings']])
-            
-            st.markdown("##### 📤 Export Audience")
-            if st.button("Download Audience as CSV", use_container_width=True):
-                csv = audience.to_csv(index=False)
-                st.download_button(
-                    label="Download CSV File",
-                    data=csv,
-                    file_name=f"campaign_audience_{datetime.now().strftime('%Y%m%d')}.csv",
-                    mime="text/csv",
-                    use_container_width=True
-                )
-
-elif section == "📈 Campaign Analytics":
-    st.markdown("<h2 class='section-header'>📈 Campaign Performance Analytics</h2>", unsafe_allow_html=True)
-    
-    selected_campaign = st.selectbox(
-        "Select Campaign for Analysis:",
-        df_campaigns['campaign_name'].unique()
-    )
-    
-    campaign_data = df_campaigns[df_campaigns['campaign_name'] == selected_campaign]
-    
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        total_revenue = campaign_data['revenue_generated'].sum()
-        st.metric("Total Revenue", f"€{total_revenue:,.0f}")
-    
-    with col2:
-        avg_conversion = campaign_data['conversion_rate'].mean() * 100
-        st.metric("Avg Conversion", f"{avg_conversion:.1f}%")
-    
-    with col3:
-        total_reach = campaign_data['actual_reach'].sum()
-        st.metric("Total Reach", f"{total_reach:,}")
-    
-    with col4:
-        avg_cpa = campaign_data['cost_per_acquisition'].mean()
-        st.metric("Avg CPA", f"€{avg_cpa:.0f}")
-    
-    st.markdown("#### 📊 Monthly Performance Trends")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("**Conversion Rate Trend**")
-        conv_data = campaign_data.set_index('month')[['conversion_rate']]
-        conv_data['conversion_rate'] = conv_data['conversion_rate'] * 100
-        st.line_chart(conv_data)
-    
-    with col2:
-        st.markdown("**Revenue Trend**")
-        revenue_data = campaign_data.set_index('month')[['revenue_generated']]
-        st.line_chart(revenue_data)
-    
-    st.markdown("#### 📈 Cross-Campaign Comparison")
-    
-    comparison_metric = st.selectbox(
-        "Select Metric for Comparison:", 
-        ["conversion_rate", "revenue_generated", "cost_per_acquisition", "actual_reach"]
-    )
-    
-    campaign_comparison = df_campaigns.groupby('campaign_name')[comparison_metric].mean().sort_values(ascending=False)
-    st.bar_chart(campaign_comparison)
-
-elif section == "🗺️ Geographic Analysis":
-    st.markdown("<h2 class='section-header'>🗺️ Geographic Analysis</h2>", unsafe_allow_html=True)
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("#### 🇪🇸 Spain Regional Analysis")
-        
-        # Prepare data for Spain map
-        spanish_data = []
-        for region, info in spanish_regions.items():
-            region_customers = df_customers[df_customers['region'] == region]
-            spanish_data.append({
-                'region': region,
-                'lat': info['lat'],
-                'lon': info['lon'],
-                'customers': len(region_customers),
-                'avg_balance': region_customers['total_balance'].mean(),
-                'conversion_rate': np.random.uniform(2, 8)  # Simulated conversion rates
-            })
-        
-        df_spain = pd.DataFrame(spanish_data)
-        
-        # Spain map
-        layer = pdk.Layer(
-            "ScatterplotLayer",
-            df_spain,
-            pickable=True,
-            opacity=0.8,
-            stroked=True,
-            filled=True,
-            radius_scale=100,
-            radius_min_pixels=5,
-            radius_max_pixels=50,
-            line_width_min_pixels=1,
-            get_position=["lon", "lat"],
-            get_radius="customers",
-            get_fill_color=[255, 107, 107, 180],
-            get_line_color=[0, 0, 0],
-        )
-        
-        view_state = pdk.ViewState(
-            longitude=-3.7038,
-            latitude=40.4168,
-            zoom=5,
-            pitch=0,
-        )
-        
-        r = pdk.Deck(
-            layers=[layer],
-            initial_view_state=view_state,
-            tooltip={
-                "html": "<b>{region}</b><br>Customers: {customers}<br>Avg Balance: €{avg_balance:.0f}",
-                "style": {"color": "white"}
-            }
-        )
-        
-        st.pydeck_chart(r)
-        
-        st.markdown("#### Spanish Regions Data")
-        st.dataframe(df_spain[['region', 'customers', 'avg_balance', 'conversion_rate']])
-    
-    with col2:
-        st.markdown("#### 🇪🇺 European Market Analysis")
-        
-        # Prepare data for Europe map
-        europe_data = []
-        for country, info in european_countries.items():
-            europe_data.append({
-                'country': country,
-                'lat': info['lat'],
-                'lon': info['lon'],
-                'customers': info['customers'],
-                'conversion_rate': info['conversion']
-            })
-        
-        df_europe = pd.DataFrame(europe_data)
-        
-        # Europe map
-        layer_europe = pdk.Layer(
-            "ScatterplotLayer",
-            df_europe,
-            pickable=True,
-            opacity=0.8,
-            stroked=True,
-            filled=True,
-            radius_scale=200,
-            radius_min_pixels=8,
-            radius_max_pixels=80,
-            line_width_min_pixels=1,
-            get_position=["lon", "lat"],
-            get_radius="customers",
-            get_fill_color=[78, 205, 196, 180],
-            get_line_color=[0, 0, 0],
-        )
-        
-        view_state_europe = pdk.ViewState(
-            longitude=10.0,
-            latitude=50.0,
-            zoom=3,
-            pitch=0,
-        )
-        
-        r_europe = pdk.Deck(
-            layers=[layer_europe],
-            initial_view_state=view_state_europe,
-            tooltip={
-                "html": "<b>{country}</b><br>Customers: {customers}<br>Conversion: {conversion_rate}%",
-                "style": {"color": "white"}
-            }
-        )
-        
-        st.pydeck_chart(r_europe)
-        
-        st.markdown("#### European Markets Data")
-        st.dataframe(df_europe[['country', 'customers', 'conversion_rate']])
-        
-        # European conversion metrics
-        st.markdown("#### 📊 European Conversion Metrics")
-        for country in df_europe.itertuples():
-            col1, col2 = st.columns([3, 1])
-            with col1:
-                st.write(f"**{country.country}**")
-            with col2:
-                st.metric("Rate", f"{country.conversion_rate}%")
-
-elif section == "🚀 Campaign Execution":
-    st.markdown("<h2 class='section-header'>🚀 Campaign Programming & Execution</h2>", unsafe_allow_html=True)
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("#### 📋 Campaign Setup")
-        
-        campaign_name = st.text_input("Campaign Name", "Q1_2024_CreditCard_Promo")
-        
-        st.markdown("**Execution Parameters:**")
-        execution_date = st.date_input("Execution Date", datetime.now() + timedelta(days=7))
-        channel = st.selectbox("Communication Channel", ["Email", "SMS", "Push Notification", "Direct Mail"])
-        priority = st.select_slider("Campaign Priority", ["Low", "Medium", "High"], value="Medium")
-        
-        st.markdown("**Audience Selection:**")
-        if 'filtered_audience' in st.session_state:
-            audience_size = len(st.session_state.filtered_audience)
-            st.success(f"✅ Pre-generated audience available: {audience_size} customers")
-            use_existing = st.checkbox("Use pre-generated audience", value=True)
+    # Main content
+    if 'data_loaded' not in st.session_state:
+        show_landing_page()
+    else:
+        if "Overview Dashboard" in page:
+            show_overview_dashboard(dashboard)
+        elif "Analytics & Charts" in page:
+            show_analytics_dashboard(dashboard)
         else:
-            st.warning("⚠️ No audience generated yet")
-            use_existing = False
-        
-        message_template = st.text_area(
-            "Campaign Message Template", 
-            "Estimado cliente, tenemos una oferta exclusiva para usted...\n\nComo cliente preferente, puede acceder a [producto] con condiciones especiales.\n\n¡No pierda esta oportunidad!",
-            height=100
-        )
-        
-        if st.button("🚀 Schedule Campaign", type="primary", use_container_width=True):
-            st.success(f"✅ Campaign '{campaign_name}' scheduled for {execution_date}")
-            st.balloons()
-            
-            st.markdown("**Next Steps:**")
-            st.write("1. ✅ Campaign scheduled in system")
-            st.write("2. 📧 Communications team notified")
-            st.write("3. 📊 Tracking codes generated")
-            st.write("4. 🎯 Ready for execution")
+            show_raw_data_explorer(dashboard)
+
+def show_landing_page():
+    """Show landing page before data is loaded"""
+    col1, col2, col3 = st.columns([1,2,1])
     
     with col2:
-        st.markdown("#### 📊 Execution Dashboard")
+        st.markdown("""
+        <div style='text-align: center; padding: 60px 20px;'>
+            <h1 style='color: #2C3E50; font-size: 3rem; margin-bottom: 20px;'>🌍 GeoWeather Intelligence</h1>
+            <p style='color: #7F8C8D; font-size: 1.2rem; margin-bottom: 40px;'>
+            Advanced Earth Observation & Weather Analytics Platform
+            </p>
+            <div style='background: white; padding: 30px; border-radius: 15px; box-shadow: 0 8px 25px rgba(0,0,0,0.1);'>
+                <h3 style='color: #2E8B57;'>🚀 Get Started</h3>
+                <p>Enter a city name in the sidebar and click <strong>Get GeoWeather Data</strong> to begin your analysis.</p>
+                <div style='display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-top: 30px;'>
+                    <div style='padding: 15px; background: #E8F5E8; border-radius: 10px;'>
+                        <h4 style='color: #2E8B57;'>🌋 Seismic Data</h4>
+                        <p>Earthquake monitoring & analysis</p>
+                    </div>
+                    <div style='padding: 15px; background: #E8F4F8; border-radius: 10px;'>
+                        <h4 style='color: #1E6FA9;'>⛈️ Weather Intelligence</h4>
+                        <p>Real-time weather patterns</p>
+                    </div>
+                    <div style='padding: 15px; background: #FFF5E8; border-radius: 10px;'>
+                        <h4 style='color: #FF8C42;'>⚠️ Alert Systems</h4>
+                        <p>Early warning systems</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+def show_overview_dashboard(dashboard):
+    """Show main overview dashboard"""
+    city_name = st.session_state.city_name
+    lat = st.session_state.lat
+    lon = st.session_state.lon
+    
+    st.markdown(f"<h1 class='section-header'>🌐 Earth Intelligence - {city_name}</h1>", unsafe_allow_html=True)
+    
+    # Location Overview
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.markdown(f"""
+        <div class='earth-kpi'>
+            <h3>📍 Target Location</h3>
+            <div class='metric-value'>{city_name}</div>
+            <p>Analysis Center</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown(f"""
+        <div class='weather-kpi'>
+            <h3>🌐 Coordinates</h3>
+            <div class='metric-value'>{lat:.4f}, {lon:.4f}</div>
+            <p>Latitude, Longitude</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        earthquakes = st.session_state.earthquake_data
+        recent_count = len(earthquakes) if earthquakes else 0
+        st.markdown(f"""
+        <div class='earth-kpi'>
+            <h3>🌋 Seismic Events</h3>
+            <div class='metric-value'>{recent_count}</div>
+            <p>Total Recorded</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col4:
+        alerts = st.session_state.severe_alerts
+        alert_count = len(alerts) if alerts else 0
+        st.markdown(f"""
+        <div class='alert-kpi'>
+            <h3>⚠️ Active Alerts</h3>
+            <div class='metric-value'>{alert_count}</div>
+            <p>Weather Warnings</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # 2D Earthquake Map
+    st.markdown("<h2 class='section-header'>🗺️ Seismic Activity Map</h2>", unsafe_allow_html=True)
+    
+    if st.session_state.earthquake_data:
+        fig = create_2d_earthquake_map(
+            st.session_state.earthquake_data, 
+            st.session_state.lat, 
+            st.session_state.lon,
+            st.session_state.city_name
+        )
+        if fig:
+            st.pyplot(fig)
+        else:
+            st.info("No earthquake data available for mapping")
+    else:
+        st.info("Loading earthquake data...")
+    
+    # Quick Stats & Alerts
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("<h3 style='color: #2C3E50;'>📈 Quick Statistics</h3>", unsafe_allow_html=True)
         
-        st.markdown("**Campaign Pipeline**")
+        if st.session_state.earthquake_data:
+            eq_data = st.session_state.earthquake_data
+            magnitudes = [eq.get('magnitude', 0) for eq in eq_data if eq.get('magnitude')]
+            if magnitudes:
+                stats_data = {
+                    'Max Magnitude': max(magnitudes),
+                    'Avg Magnitude': sum(magnitudes) / len(magnitudes),
+                    'Min Magnitude': min(magnitudes),
+                    'Total Events': len(magnitudes)
+                }
+                
+                fig = create_custom_chart("bar", stats_data, "Earthquake Statistics", 
+                                        [COLOR_THEORY['earth_green'], COLOR_THEORY['deep_blue'], 
+                                         COLOR_THEORY['warm_amber'], COLOR_THEORY['rich_clay']])
+                st.pyplot(fig)
+    
+    with col2:
+        st.markdown("<h3 style='color: #2C3E50;'>🚨 Recent Alerts</h3>", unsafe_allow_html=True)
         
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Scheduled", "12", "+2")
-        with col2:
-            st.metric("Ready", "5", "0")
-        with col3:
-            st.metric("In Progress", "3", "-1")
-        with col4:
-            st.metric("Completed", "24", "+4")
-        
-        st.markdown("**Recent Campaign Executions**")
-        
-        execution_history = [
-            {"Campaign": "Credit Card Q4", "Status": "✅ Completed", "Date": "2024-01-15", "Reach": "15,234", "Conv Rate": "4.2%"},
-            {"Campaign": "Personal Loan Promo", "Status": "🔄 In Progress", "Date": "2024-01-14", "Reach": "8,567", "Conv Rate": "3.8%"},
-            {"Campaign": "Mortgage Special", "Status": "✅ Completed", "Date": "2024-01-13", "Reach": "12,890", "Conv Rate": "2.1%"},
-            {"Campaign": "Investment Fund", "Status": "⏸️ Paused", "Date": "2024-01-12", "Reach": "5,432", "Conv Rate": "5.6%"},
-        ]
-        
-        for campaign in execution_history:
-            with st.container():
-                st.write(f"**{campaign['Campaign']}**")
-                col1, col2, col3 = st.columns([1, 1, 2])
+        alerts = st.session_state.severe_alerts
+        if alerts:
+            for i, alert in enumerate(alerts[:4]):
+                alert_type = alert.get('type', 'Unknown Alert')
+                severity = alert.get('severity', 'Medium')
+                description = alert.get('description', 'No description available')
+                
+                st.markdown(f"""
+                <div class='data-card alert-card'>
+                    <div style='display: flex; align-items: center; margin-bottom: 10px;'>
+                        <span style='background: {COLOR_THEORY['warm_amber']}; color: white; padding: 5px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: bold;'>
+                            {severity}
+                        </span>
+                        <span style='margin-left: 10px; font-weight: bold; color: {COLOR_THEORY['storm_gray']};'>
+                            {alert_type}
+                        </span>
+                    </div>
+                    <p style='color: {COLOR_THEORY['text_light']}; margin: 0;'>{description}</p>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.markdown(f"""
+            <div class='data-card'>
+                <p style='text-align: center; color: {COLOR_THEORY['text_light']};'>
+                    ✅ No active alerts in this region
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+
+def show_analytics_dashboard(dashboard):
+    """Show advanced analytics and charts"""
+    st.markdown("<h1 class='section-header'>📊 Advanced Analytics</h1>", unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Earthquake Magnitude Distribution
+        if st.session_state.earthquake_data:
+            magnitudes = [eq.get('magnitude', 0) for eq in st.session_state.earthquake_data if eq.get('magnitude')]
+            if magnitudes:
+                mag_ranges = {'0-2': 0, '2-4': 0, '4-6': 0, '6+': 0}
+                for mag in magnitudes:
+                    if mag < 2: mag_ranges['0-2'] += 1
+                    elif mag < 4: mag_ranges['2-4'] += 1
+                    elif mag < 6: mag_ranges['4-6'] += 1
+                    else: mag_ranges['6+'] += 1
+                
+                fig = create_custom_chart("pie", mag_ranges, "Earthquake Magnitude Distribution",
+                                        [COLOR_THEORY['sky_blue'], COLOR_THEORY['earth_green'], 
+                                         COLOR_THEORY['warm_amber'], COLOR_THEORY['rich_clay']])
+                st.pyplot(fig)
+    
+    with col2:
+        # Weather Data Analysis
+        if st.session_state.weather_data:
+            weather_df = pd.DataFrame(st.session_state.weather_data)
+            if not weather_df.empty and 'temperature' in weather_df.columns:
+                temp_data = weather_df['temperature'].value_counts().head(10)
+                if not temp_data.empty:
+                    fig = create_custom_chart("bar", temp_data, "Temperature Frequency",
+                                            [COLOR_THEORY['deep_blue']] * len(temp_data))
+                    st.pyplot(fig)
+    
+    # Additional Analytics
+    st.markdown("<h2 class='section-header'>📈 Trend Analysis</h2>", unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Time-based analysis (simulated)
+        time_data = {
+            'Jan': 45, 'Feb': 52, 'Mar': 48, 'Apr': 55,
+            'May': 60, 'Jun': 65, 'Jul': 62, 'Aug': 58
+        }
+        fig = create_custom_chart("line", time_data, "Monthly Activity Trend",
+                                [COLOR_THEORY['earth_green']])
+        st.pyplot(fig)
+    
+    with col2:
+        # Alert type distribution
+        if st.session_state.severe_alerts:
+            alert_types = {}
+            for alert in st.session_state.severe_alerts:
+                alert_type = alert.get('type', 'Unknown')
+                alert_types[alert_type] = alert_types.get(alert_type, 0) + 1
+            
+            if alert_types:
+                fig = create_custom_chart("bar", alert_types, "Alert Type Distribution",
+                                        [COLOR_THEORY['warm_amber'], COLOR_THEORY['rich_clay'], 
+                                         COLOR_THEORY['sunset_orange']])
+                st.pyplot(fig)
+
+def show_raw_data_explorer(dashboard):
+    """Show raw data explorer with tables"""
+    st.markdown("<h1 class='section-header'>📋 Raw Data Explorer</h1>", unsafe_allow_html=True)
+    
+    # Create tabs for different data types
+    tab1, tab2, tab3 = st.tabs(["🌋 Earthquake Data", "⚠️ Alert Data", "🌤️ Weather Data"])
+    
+    with tab1:
+        st.markdown("<h3 style='color: #2C3E50;'>Seismic Activity Data</h3>", unsafe_allow_html=True)
+        if st.session_state.earthquake_data:
+            eq_df = pd.DataFrame(st.session_state.earthquake_data)
+            # Select only relevant columns for display
+            display_columns = [col for col in ['location', 'magnitude', 'depth', 'lat', 'lon', 'time'] 
+                             if col in eq_df.columns]
+            if display_columns:
+                st.dataframe(eq_df[display_columns].head(20), use_container_width=True)
+                
+                # Show basic statistics
+                st.markdown("#### 📊 Data Summary")
+                col1, col2, col3 = st.columns(3)
                 with col1:
-                    st.write(campaign['Status'])
+                    st.metric("Total Records", len(eq_df))
                 with col2:
-                    st.write(campaign['Date'])
+                    if 'magnitude' in eq_df.columns:
+                        st.metric("Average Magnitude", f"{eq_df['magnitude'].mean():.2f}")
                 with col3:
-                    st.write(f"Reach: {campaign['Reach']} | Conv: {campaign['Conv Rate']}")
-                st.divider()
+                    if 'depth' in eq_df.columns:
+                        st.metric("Max Depth", f"{eq_df['depth'].max():.1f} km")
+        else:
+            st.info("No earthquake data available")
+    
+    with tab2:
+        st.markdown("<h3 style='color: #2C3E50;'>Weather Alert Data</h3>", unsafe_allow_html=True)
+        if st.session_state.severe_alerts:
+            alerts_df = pd.DataFrame(st.session_state.severe_alerts)
+            st.dataframe(alerts_df.head(20), use_container_width=True)
+            
+            st.markdown("#### 🚨 Alert Overview")
+            if 'severity' in alerts_df.columns:
+                severity_counts = alerts_df['severity'].value_counts()
+                for severity, count in severity_counts.items():
+                    st.write(f"**{severity}**: {count} alerts")
+        else:
+            st.info("No alert data available")
+    
+    with tab3:
+        st.markdown("<h3 style='color: #2C3E50;'>Weather Observation Data</h3>", unsafe_allow_html=True)
+        if st.session_state.weather_data:
+            weather_df = pd.DataFrame(st.session_state.weather_data)
+            st.dataframe(weather_df.head(20), use_container_width=True)
+            
+            st.markdown("#### 🌡️ Weather Summary")
+            if 'temperature' in weather_df.columns:
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Avg Temp", f"{weather_df['temperature'].mean():.1f}°C")
+                with col2:
+                    st.metric("Min Temp", f"{weather_df['temperature'].min():.1f}°C")
+                with col3:
+                    st.metric("Max Temp", f"{weather_df['temperature'].max():.1f}°C")
 
-# PySpark Integration Section
-st.sidebar.markdown("---")
-st.sidebar.markdown("<h3 style='color: white; font-family: Helvetica;'>⚡ PySpark Integration</h3>", unsafe_allow_html=True)
-
-if st.sidebar.button("Simulate PySpark Processing"):
-    with st.sidebar.expander("PySpark Results"):
-        st.write("**Data Processing with PySpark:**")
-        st.write("✅ Customer data loaded")
-        st.write("✅ Audience segmentation completed")
-        st.write("✅ Campaign analytics processed")
-        st.write("✅ Geographic analysis generated")
-        st.write(f"📊 Total records: {len(df_customers):,}")
-        st.write(f"🎯 Eligible for campaigns: {len(df_customers[df_customers['campaign_eligible']]):,}")
-
-# Footer
-st.markdown("---")
-st.markdown(
-    "<p style='text-align: center; color: white; font-family: Helvetica;'>"
-    "Built with Streamlit & PySpark for Accenture Banking Analytics | "
-    "Generación de Audiencias & Programación de Campañas"
-    "</p>", 
-    unsafe_allow_html=True
-)
+if __name__ == "__main__":
+    main()
