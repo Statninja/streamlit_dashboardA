@@ -1,8 +1,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.express as px
-import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import io
 
@@ -35,10 +33,6 @@ st.markdown("""
         border-radius: 10px;
         border-left: 4px solid #000080;
         margin-bottom: 1rem;
-    }
-    .sidebar .sidebar-content {
-        background-color: #000080;
-        color: white;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -93,11 +87,12 @@ df_customers = st.session_state.df_customers
 df_campaigns = st.session_state.df_campaigns
 
 # Sidebar navigation
-st.sidebar.markdown("<h1 style='color: white;'>📊 Navigation</h1>", unsafe_allow_html=True)
+st.sidebar.markdown("<h1 style='color: #000080;'>📊 Navigation</h1>", unsafe_allow_html=True)
 section = st.sidebar.radio("", ["🏠 Dashboard Overview", "🎯 Audience Generation", "📈 Campaign Analytics", "🚀 Campaign Execution"])
 
 # Main header
 st.markdown("<h1 class='main-header'>🏦 Banking Campaign Analytics Dashboard</h1>", unsafe_allow_html=True)
+st.markdown("<p style='color: #A100FF; font-size: 1.2rem;'>Generación de Audiencias & Programación de Campañas</p>", unsafe_allow_html=True)
 
 if section == "🏠 Dashboard Overview":
     st.markdown("### 📈 Executive Summary")
@@ -144,26 +139,32 @@ if section == "🏠 Dashboard Overview":
     with col1:
         st.markdown("#### 📊 Customer Distribution by Income Segment")
         income_dist = df_customers['income_segment'].value_counts()
-        fig_income = px.pie(
-            values=income_dist.values,
-            names=income_dist.index,
-            color=income_dist.index,
-            color_discrete_map={'Low':'#000080', 'Medium':'#A100FF', 'High':'#4169E1'}
-        )
-        st.plotly_chart(fig_income, use_container_width=True)
+        st.bar_chart(income_dist)
+        
+        # Additional data table
+        st.markdown("#### 👥 Customer Demographics")
+        demo_summary = df_customers.groupby('income_segment').agg({
+            'age': 'mean',
+            'total_balance': 'mean',
+            'product_holdings': 'mean'
+        }).round(1)
+        st.dataframe(demo_summary)
     
     with col2:
         st.markdown("#### 📈 Campaign Performance Overview")
         campaign_perf = df_campaigns.groupby('campaign_name')['conversion_rate'].mean().sort_values(ascending=False)
-        fig_campaign = px.bar(
-            x=campaign_perf.values * 100,
-            y=campaign_perf.index,
-            orientation='h',
-            color=campaign_perf.values,
-            color_continuous_scale=['#000080', '#A100FF']
-        )
-        fig_campaign.update_layout(xaxis_title="Conversion Rate (%)", yaxis_title="Campaign")
-        st.plotly_chart(fig_campaign, use_container_width=True)
+        
+        # Display as metric cards
+        for campaign, rate in campaign_perf.items():
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.write(f"**{campaign}**")
+            with col2:
+                st.metric("Rate", f"{rate*100:.1f}%")
+        
+        st.markdown("#### 🌍 Regional Distribution")
+        region_dist = df_customers['region'].value_counts()
+        st.dataframe(region_dist)
 
 elif section == "🎯 Audience Generation":
     st.markdown("### 🎯 Campaign Audience Generation")
@@ -197,7 +198,7 @@ elif section == "🎯 Audience Generation":
         
         min_products = st.slider("Minimum Products Held", 1, 5, 1)
         
-        if st.button("🔍 Generate Audience", type="primary"):
+        if st.button("🔍 Generate Audience", type="primary", use_container_width=True):
             # Apply filters
             filtered_audience = df_customers[
                 (df_customers['total_balance'] >= min_balance) &
@@ -206,60 +207,71 @@ elif section == "🎯 Audience Generation":
                 (df_customers['region'].isin(regions)) &
                 (df_customers['product_holdings'] >= min_products) &
                 (df_customers['campaign_eligible'])
-            ]
+            ].copy()
             st.session_state.filtered_audience = filtered_audience
+            st.success(f"✅ Audience generated: {len(filtered_audience)} customers")
     
     with col2:
         st.markdown("#### 📋 Generated Audience Summary")
         
-        if 'filtered_audience' in st.session_state:
+        if 'filtered_audience' in st.session_state and len(st.session_state.filtered_audience) > 0:
             audience = st.session_state.filtered_audience
             
             # Audience metrics
-            col1, col2, col3 = st.columns(3)
+            col1, col2, col3, col4 = st.columns(4)
             with col1:
                 st.metric("Audience Size", f"{len(audience):,}")
             with col2:
                 st.metric("Avg Balance", f"€{audience['total_balance'].mean():,.0f}")
             with col3:
                 st.metric("Avg Products", f"{audience['product_holdings'].mean():.1f}")
+            with col4:
+                st.metric("Avg Age", f"{audience['age'].mean():.1f}")
             
-            # Audience composition charts
-            tab1, tab2 = st.tabs(["📊 Demographics", "📈 Financial Profile"])
+            # Audience composition
+            st.markdown("##### 📊 Audience Composition")
+            
+            tab1, tab2, tab3 = st.tabs(["Demographics", "Financial", "Raw Data"])
             
             with tab1:
                 col1, col2 = st.columns(2)
                 with col1:
-                    age_fig = px.histogram(audience, x='age', nbins=20, 
-                                         color_discrete_sequence=['#000080'])
-                    st.plotly_chart(age_fig, use_container_width=True)
+                    st.markdown("**Income Distribution**")
+                    income_counts = audience['income_segment'].value_counts()
+                    st.bar_chart(income_counts)
                 
                 with col2:
-                    region_fig = px.bar(audience['region'].value_counts(), 
-                                      color_discrete_sequence=['#A100FF'])
-                    st.plotly_chart(region_fig, use_container_width=True)
+                    st.markdown("**Regional Distribution**")
+                    region_counts = audience['region'].value_counts()
+                    st.bar_chart(region_counts)
             
             with tab2:
                 col1, col2 = st.columns(2)
                 with col1:
-                    balance_fig = px.box(audience, y='total_balance', 
-                                       color_discrete_sequence=['#000080'])
-                    st.plotly_chart(balance_fig, use_container_width=True)
+                    st.markdown("**Balance Distribution**")
+                    st.bar_chart(audience['total_balance'].value_counts(bins=10))
                 
                 with col2:
-                    income_fig = px.pie(audience, names='income_segment',
-                                      color_discrete_map={'Low':'#000080', 'Medium':'#A100FF', 'High':'#4169E1'})
-                    st.plotly_chart(income_fig, use_container_width=True)
+                    st.markdown("**Product Holdings**")
+                    product_counts = audience['product_holdings'].value_counts().sort_index()
+                    st.bar_chart(product_counts)
+            
+            with tab3:
+                st.dataframe(audience[['customer_id', 'age', 'income_segment', 'region', 'total_balance', 'product_holdings']])
             
             # Export option
-            if st.button("📤 Export Audience List"):
+            st.markdown("##### 📤 Export Audience")
+            if st.button("Download Audience as CSV", use_container_width=True):
                 csv = audience.to_csv(index=False)
                 st.download_button(
-                    label="Download CSV",
+                    label="Download CSV File",
                     data=csv,
                     file_name=f"campaign_audience_{datetime.now().strftime('%Y%m%d')}.csv",
-                    mime="text/csv"
+                    mime="text/csv",
+                    use_container_width=True
                 )
+        else:
+            st.info("👆 Configure your audience criteria and click 'Generate Audience' to see results")
 
 elif section == "📈 Campaign Analytics":
     st.markdown("### 📈 Campaign Performance Analytics")
@@ -292,30 +304,37 @@ elif section == "📈 Campaign Analytics":
         st.metric("Avg CPA", f"€{avg_cpa:.0f}")
     
     # Performance charts
+    st.markdown("#### 📊 Monthly Performance Trends")
+    
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("#### 📊 Monthly Conversion Rate")
-        fig_conv = px.line(campaign_data, x='month', y='conversion_rate',
-                         color_discrete_sequence=['#A100FF'])
-        fig_conv.update_layout(yaxis_tickformat=".1%")
-        st.plotly_chart(fig_conv, use_container_width=True)
+        st.markdown("**Conversion Rate Trend**")
+        # Create a simple line chart using st.line_chart
+        conv_data = campaign_data.set_index('month')[['conversion_rate']]
+        conv_data['conversion_rate'] = conv_data['conversion_rate'] * 100
+        st.line_chart(conv_data)
     
     with col2:
-        st.markdown("#### 💰 Revenue Trend")
-        fig_rev = px.area(campaign_data, x='month', y='revenue_generated',
-                        color_discrete_sequence=['#000080'])
-        st.plotly_chart(fig_rev, use_container_width=True)
+        st.markdown("**Revenue Trend**")
+        revenue_data = campaign_data.set_index('month')[['revenue_generated']]
+        st.line_chart(revenue_data)
     
-    # Comparative analysis
-    st.markdown("#### 📈 Campaign Comparison")
-    comparison_metric = st.selectbox("Comparison Metric:", 
-                                   ["conversion_rate", "revenue_generated", "cost_per_acquisition"])
+    # Campaign comparison
+    st.markdown("#### 📈 Cross-Campaign Comparison")
     
-    fig_compare = px.box(df_campaigns, x='campaign_name', y=comparison_metric,
-                       color='campaign_name',
-                       color_discrete_sequence=['#000080', '#A100FF', '#4169E1', '#8A2BE2', '#4B0082'])
-    st.plotly_chart(fig_compare, use_container_width=True)
+    comparison_metric = st.selectbox(
+        "Select Metric for Comparison:", 
+        ["conversion_rate", "revenue_generated", "cost_per_acquisition", "actual_reach"]
+    )
+    
+    # Aggregate data for comparison
+    campaign_comparison = df_campaigns.groupby('campaign_name')[comparison_metric].mean().sort_values(ascending=False)
+    st.bar_chart(campaign_comparison)
+    
+    # Detailed data table
+    st.markdown("#### 📋 Detailed Campaign Data")
+    st.dataframe(campaign_data)
 
 elif section == "🚀 Campaign Execution":
     st.markdown("### 🚀 Campaign Programming & Execution")
@@ -325,60 +344,83 @@ elif section == "🚀 Campaign Execution":
     with col1:
         st.markdown("#### 📋 Campaign Setup")
         
-        campaign_name = st.text_input("Campaign Name", "New_Campaign_2024")
+        campaign_name = st.text_input("Campaign Name", "Q1_2024_CreditCard_Promo")
         
         st.markdown("**Execution Parameters:**")
         execution_date = st.date_input("Execution Date", datetime.now() + timedelta(days=7))
         channel = st.selectbox("Communication Channel", ["Email", "SMS", "Push Notification", "Direct Mail"])
+        priority = st.select_slider("Campaign Priority", ["Low", "Medium", "High"], value="Medium")
         
         st.markdown("**Audience Selection:**")
         if 'filtered_audience' in st.session_state:
             audience_size = len(st.session_state.filtered_audience)
-            st.info(f"📊 Selected Audience: {audience_size} customers")
+            st.success(f"✅ Pre-generated audience available: {audience_size} customers")
+            use_existing = st.checkbox("Use pre-generated audience", value=True)
         else:
-            st.warning("⚠️ No audience generated yet. Please generate an audience first.")
+            st.warning("⚠️ No audience generated yet")
+            use_existing = False
         
-        message_template = st.text_area("Campaign Message", "Dear customer, we have a special offer for you...")
+        message_template = st.text_area(
+            "Campaign Message Template", 
+            "Estimado cliente, tenemos una oferta exclusiva para usted...\n\nComo cliente preferente, puede acceder a [producto] con condiciones especiales.\n\n¡No pierda esta oportunidad!",
+            height=100
+        )
         
-        if st.button("🚀 Schedule Campaign", type="primary"):
+        if st.button("🚀 Schedule Campaign", type="primary", use_container_width=True):
             st.success(f"✅ Campaign '{campaign_name}' scheduled for {execution_date}")
             st.balloons()
+            
+            # Show next steps
+            st.markdown("**Next Steps:**")
+            st.write("1. ✅ Campaign scheduled in system")
+            st.write("2. 📧 Communications team notified")
+            st.write("3. 📊 Tracking codes generated")
+            st.write("4. 🎯 Ready for execution")
     
     with col2:
         st.markdown("#### 📊 Execution Dashboard")
         
         # Mock execution metrics
-        col1, col2 = st.columns(2)
+        st.markdown("**Campaign Pipeline**")
+        
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("Scheduled Campaigns", "12", "+2")
-            st.metric("Ready for Execution", "5", "0")
+            st.metric("Scheduled", "12", "+2")
         with col2:
+            st.metric("Ready", "5", "0")
+        with col3:
             st.metric("In Progress", "3", "-1")
-            st.metric("Completed Today", "4", "+1")
+        with col4:
+            st.metric("Completed", "24", "+4")
         
-        st.markdown("**Recent Campaigns:**")
+        st.markdown("**Recent Campaign Executions**")
         
-        # Mock campaign execution log
-        execution_log = [
-            {"campaign": "Credit Card Q4", "status": "✅ Completed", "date": "2024-01-15", "reach": "15,234"},
-            {"campaign": "Personal Loan Promo", "status": "🔄 In Progress", "date": "2024-01-14", "reach": "8,567"},
-            {"campaign": "Mortgage Special", "status": "✅ Completed", "date": "2024-01-13", "reach": "12,890"},
-            {"campaign": "Investment Fund", "status": "⏸️ Paused", "date": "2024-01-12", "reach": "5,432"},
+        # Campaign execution history
+        execution_history = [
+            {"Campaign": "Credit Card Q4", "Status": "✅ Completed", "Date": "2024-01-15", "Reach": "15,234", "Conv Rate": "4.2%"},
+            {"Campaign": "Personal Loan Promo", "Status": "🔄 In Progress", "Date": "2024-01-14", "Reach": "8,567", "Conv Rate": "3.8%"},
+            {"Campaign": "Mortgage Special", "Status": "✅ Completed", "Date": "2024-01-13", "Reach": "12,890", "Conv Rate": "2.1%"},
+            {"Campaign": "Investment Fund", "Status": "⏸️ Paused", "Date": "2024-01-12", "Reach": "5,432", "Conv Rate": "5.6%"},
         ]
         
-        for log in execution_log:
+        for campaign in execution_history:
             with st.container():
-                col1, col2, col3 = st.columns([2, 1, 1])
+                st.write(f"**{campaign['Campaign']}**")
+                col1, col2, col3 = st.columns([1, 1, 2])
                 with col1:
-                    st.write(f"**{log['campaign']}**")
+                    st.write(campaign['Status'])
                 with col2:
-                    st.write(log['status'])
+                    st.write(campaign['Date'])
                 with col3:
-                    st.write(log['date'])
-                st.write(f"Reach: {log['reach']} customers")
+                    st.write(f"Reach: {campaign['Reach']} | Conv: {campaign['Conv Rate']}")
                 st.divider()
 
 # Footer
 st.markdown("---")
-st.markdown("<p style='text-align: center; color: #000080;'>Built with Streamlit for Accenture Banking Analytics Team</p>", 
-            unsafe_allow_html=True)
+st.markdown(
+    "<p style='text-align: center; color: #000080;'>"
+    "Built with Streamlit for Accenture Banking Analytics | "
+    "Generación de Audiencias & Programación de Campañas"
+    "</p>", 
+    unsafe_allow_html=True
+)
