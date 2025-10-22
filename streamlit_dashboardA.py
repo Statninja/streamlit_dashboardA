@@ -3,6 +3,11 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 import io
+import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')
+import seaborn as sns
+import pydeck as pdk
 
 # Set page configuration with royal blue theme
 st.set_page_config(
@@ -61,25 +66,6 @@ st.markdown("""
     div[data-testid="stSidebarNav"] {
         background: rgba(255, 255, 255, 0.1);
     }
-    .map-container {
-        background: rgba(255, 255, 255, 0.1);
-        padding: 20px;
-        border-radius: 10px;
-        margin: 10px 0;
-    }
-    .region-card {
-        background: rgba(255, 255, 255, 0.15);
-        padding: 15px;
-        border-radius: 10px;
-        margin: 10px 0;
-        border-left: 4px solid #FF6B6B;
-    }
-    .finance-chart-container {
-        background: rgba(255, 255, 255, 0.1);
-        padding: 20px;
-        border-radius: 10px;
-        margin: 10px 0;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -87,27 +73,27 @@ st.markdown("""
 def generate_sample_data():
     np.random.seed(42)
     
-    # Spanish regions data
+    # Spanish regions and coordinates - FIXED: Added all required fields
     spanish_regions = {
-        'Madrid': {'customers': 180, 'conversion': 4.8, 'revenue': 450000, 'aum': 45000000},
-        'Cataluña': {'customers': 160, 'conversion': 4.2, 'revenue': 380000, 'aum': 38000000},
-        'Andalucía': {'customers': 150, 'conversion': 3.9, 'revenue': 320000, 'aum': 32000000},
-        'Valencia': {'customers': 120, 'conversion': 4.1, 'revenue': 280000, 'aum': 28000000},
-        'País Vasco': {'customers': 90, 'conversion': 5.2, 'revenue': 220000, 'aum': 22000000},
-        'Galicia': {'customers': 80, 'conversion': 3.8, 'revenue': 180000, 'aum': 18000000},
-        'Castilla y León': {'customers': 85, 'conversion': 3.6, 'revenue': 190000, 'aum': 19000000},
-        'Aragón': {'customers': 70, 'conversion': 4.0, 'revenue': 160000, 'aum': 16000000},
-        'Canarias': {'customers': 65, 'conversion': 3.7, 'revenue': 150000, 'aum': 15000000}
+        'Madrid': {'lat': 40.4168, 'lon': -3.7038, 'customers': 180, 'conversion': 4.8, 'revenue': 450000, 'aum': 45000000},
+        'Cataluña': {'lat': 41.3874, 'lon': 2.1686, 'customers': 160, 'conversion': 4.2, 'revenue': 380000, 'aum': 38000000},
+        'Andalucía': {'lat': 37.3891, 'lon': -5.9845, 'customers': 150, 'conversion': 3.9, 'revenue': 320000, 'aum': 32000000},
+        'Valencia': {'lat': 39.4699, 'lon': -0.3763, 'customers': 120, 'conversion': 4.1, 'revenue': 280000, 'aum': 28000000},
+        'País Vasco': {'lat': 43.2630, 'lon': -2.9350, 'customers': 90, 'conversion': 5.2, 'revenue': 220000, 'aum': 22000000},
+        'Galicia': {'lat': 42.5751, 'lon': -8.1339, 'customers': 80, 'conversion': 3.8, 'revenue': 180000, 'aum': 18000000},
+        'Castilla y León': {'lat': 41.8357, 'lon': -4.3976, 'customers': 85, 'conversion': 3.6, 'revenue': 190000, 'aum': 19000000},
+        'Aragón': {'lat': 41.6488, 'lon': -0.8891, 'customers': 70, 'conversion': 4.0, 'revenue': 160000, 'aum': 16000000},
+        'Canarias': {'lat': 28.2916, 'lon': -16.6291, 'customers': 65, 'conversion': 3.7, 'revenue': 150000, 'aum': 15000000}
     }
     
-    # European countries data
+    # European countries data - FIXED: Added all required fields
     european_countries = {
-        'Spain': {'customers': 1000, 'conversion': 4.2, 'revenue': 2450000, 'aum': 245000000},
-        'France': {'customers': 850, 'conversion': 3.8, 'revenue': 1980000, 'aum': 198000000},
-        'Germany': {'customers': 920, 'conversion': 4.5, 'revenue': 2150000, 'aum': 215000000},
-        'Italy': {'customers': 780, 'conversion': 3.9, 'revenue': 1820000, 'aum': 182000000},
-        'UK': {'customers': 890, 'conversion': 4.1, 'revenue': 2080000, 'aum': 208000000},
-        'Portugal': {'customers': 450, 'conversion': 3.5, 'revenue': 1250000, 'aum': 125000000}
+        'Spain': {'lat': 40.4637, 'lon': -3.7492, 'customers': 1000, 'conversion': 4.2, 'revenue': 2450000, 'aum': 245000000},
+        'France': {'lat': 46.6034, 'lon': 1.8883, 'customers': 850, 'conversion': 3.8, 'revenue': 1980000, 'aum': 198000000},
+        'Germany': {'lat': 51.1657, 'lon': 10.4515, 'customers': 920, 'conversion': 4.5, 'revenue': 2150000, 'aum': 215000000},
+        'Italy': {'lat': 41.8719, 'lon': 12.5674, 'customers': 780, 'conversion': 3.9, 'revenue': 1820000, 'aum': 182000000},
+        'UK': {'lat': 55.3781, 'lon': -3.4360, 'customers': 890, 'conversion': 4.1, 'revenue': 2080000, 'aum': 208000000},
+        'Portugal': {'lat': 39.3999, 'lon': -8.2245, 'customers': 450, 'conversion': 3.5, 'revenue': 1250000, 'aum': 125000000}
     }
     
     # Customer base data
@@ -123,6 +109,8 @@ def generate_sample_data():
             'total_balance': np.random.normal(5000, 3000),
             'risk_profile': np.random.choice(['Low', 'Medium', 'High'], p=[0.6, 0.3, 0.1]),
             'region': region,
+            'latitude': spanish_regions[region]['lat'] + np.random.uniform(-0.5, 0.5),
+            'longitude': spanish_regions[region]['lon'] + np.random.uniform(-0.5, 0.5),
             'campaign_eligible': np.random.choice([True, False], p=[0.7, 0.3])
         })
     
@@ -147,7 +135,15 @@ def generate_sample_data():
     
     df_campaigns = pd.DataFrame(campaign_data)
     
-    # Financial performance data - FIXED: Use numeric months for charts
+    # Funnel data
+    funnel_data = {
+        'stage': ['Awareness', 'Interest', 'Consideration', 'Conversion', 'Loyalty'],
+        'count': [10000, 6500, 3200, 1500, 800],
+        'percentage': [100, 65, 32, 15, 8]
+    }
+    df_funnel = pd.DataFrame(funnel_data)
+    
+    # Financial performance data
     financial_data = {
         'month': list(range(1, 13)),
         'revenue': np.random.randint(80000, 150000, 12),
@@ -157,15 +153,16 @@ def generate_sample_data():
     }
     df_financial = pd.DataFrame(financial_data)
     
-    return df_customers, df_campaigns, df_financial, spanish_regions, european_countries
+    return df_customers, df_campaigns, df_funnel, df_financial, spanish_regions, european_countries
 
 # Initialize session state for data
 if 'data_loaded' not in st.session_state:
-    st.session_state.df_customers, st.session_state.df_campaigns, st.session_state.df_financial, st.session_state.spanish_regions, st.session_state.european_countries = generate_sample_data()
+    st.session_state.df_customers, st.session_state.df_campaigns, st.session_state.df_funnel, st.session_state.df_financial, st.session_state.spanish_regions, st.session_state.european_countries = generate_sample_data()
     st.session_state.data_loaded = True
 
 df_customers = st.session_state.df_customers
 df_campaigns = st.session_state.df_campaigns
+df_funnel = st.session_state.df_funnel
 df_financial = st.session_state.df_financial
 spanish_regions = st.session_state.spanish_regions
 european_countries = st.session_state.european_countries
@@ -259,45 +256,70 @@ if section == "🏠 Dashboard Overview":
     
     with col1:
         st.markdown("#### 📊 Customer Data Table")
-        st.dataframe(df_customers[['customer_id', 'age', 'income_segment', 'region', 'total_balance', 'product_holdings']].head(8))
+        st.dataframe(df_customers[['customer_id', 'age', 'income_segment', 'region', 'total_balance', 'product_holdings']].head(10))
         
-        st.markdown("#### 💰 Financial Performance")
+        st.markdown("#### 📈 Funnel Analysis")
+        fig, ax = plt.subplots(figsize=(10, 6))
+        fig.patch.set_facecolor('#1E3A8A')
+        ax.set_facecolor('#1E3A8A')
         
-        # Revenue trend - FIXED: Use proper data formatting
-        st.markdown("**Monthly Revenue Trend**")
-        revenue_data = df_financial[['month', 'revenue']].copy()
-        revenue_data['month'] = revenue_data['month'].astype(str)
-        revenue_chart_data = revenue_data.set_index('month')['revenue']
-        st.line_chart(revenue_chart_data)
+        # Create funnel chart
+        stages = df_funnel['stage']
+        percentages = df_funnel['percentage']
         
-        # Profit trend
-        st.markdown("**Monthly Profit Trend**")
-        profit_data = df_financial[['month', 'profit']].copy()
-        profit_data['month'] = profit_data['month'].astype(str)
-        profit_chart_data = profit_data.set_index('month')['profit']
-        st.line_chart(profit_chart_data)
+        bars = ax.barh(stages, percentages, color=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7'])
+        ax.set_xlabel('Conversion Rate (%)', color='white', fontfamily='Helvetica')
+        ax.set_ylabel('Funnel Stage', color='white', fontfamily='Helvetica')
+        ax.tick_params(colors='white', labelsize=10)
+        ax.grid(True, alpha=0.3, color='white')
+        
+        # Add value labels on bars
+        for bar, percentage in zip(bars, percentages):
+            ax.text(bar.get_width() + 1, bar.get_y() + bar.get_height()/2, 
+                   f'{percentage}%', ha='left', va='center', color='white', fontfamily='Helvetica', fontweight='bold')
+        
+        plt.tight_layout()
+        st.pyplot(fig)
     
     with col2:
         st.markdown("#### 📊 Customer Distribution by Income Segment")
         income_dist = df_customers['income_segment'].value_counts()
-        st.bar_chart(income_dist)
+        
+        fig, ax = plt.subplots(figsize=(10, 6))
+        fig.patch.set_facecolor('#1E3A8A')
+        ax.set_facecolor('#1E3A8A')
+        
+        colors = ['#FF6B6B', '#4ECDC4', '#45B7D1']
+        wedges, texts, autotexts = ax.pie(income_dist.values, labels=income_dist.index, autopct='%1.1f%%',
+                                         colors=colors, startangle=90)
+        
+        for text in texts:
+            text.set_color('white')
+            text.set_fontfamily('Helvetica')
+        for autotext in autotexts:
+            autotext.set_color('white')
+            autotext.set_fontfamily('Helvetica')
+            autotext.set_fontweight('bold')
+        
+        st.pyplot(fig)
         
         st.markdown("#### 📈 Campaign Performance Overview")
         campaign_perf = df_campaigns.groupby('campaign_name')['conversion_rate'].mean().sort_values(ascending=False)
         
-        # Display campaign performance as metrics
-        for campaign, rate in campaign_perf.items():
-            col_c1, col_c2 = st.columns([3, 1])
-            with col_c1:
-                st.write(f"**{campaign}**")
-            with col_c2:
-                st.metric("Rate", f"{rate*100:.1f}%")
+        fig, ax = plt.subplots(figsize=(10, 6))
+        fig.patch.set_facecolor('#1E3A8A')
+        ax.set_facecolor('#1E3A8A')
         
-        st.markdown("#### 📊 Assets Under Management")
-        aum_data = df_financial[['month', 'aum']].copy()
-        aum_data['month'] = aum_data['month'].astype(str)
-        aum_chart_data = aum_data.set_index('month')['aum']
-        st.area_chart(aum_chart_data)
+        bars = ax.barh(range(len(campaign_perf)), campaign_perf.values * 100, 
+                      color=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7'])
+        ax.set_yticks(range(len(campaign_perf)))
+        ax.set_yticklabels(campaign_perf.index, color='white', fontfamily='Helvetica')
+        ax.set_xlabel('Conversion Rate (%)', color='white', fontfamily='Helvetica')
+        ax.tick_params(colors='white')
+        ax.grid(True, alpha=0.3, color='white')
+        
+        plt.tight_layout()
+        st.pyplot(fig)
 
 elif section == "🎯 Audience Generation":
     st.markdown("<h2 class='section-header'>🎯 Campaign Audience Generation</h2>", unsafe_allow_html=True)
@@ -376,13 +398,8 @@ elif section == "🎯 Audience Generation":
             with tab2:
                 col1, col2 = st.columns(2)
                 with col1:
-                    st.markdown("**Balance Ranges**")
-                    # Create simple balance ranges
-                    balance_data = pd.cut(audience['total_balance'], 
-                                        bins=[0, 2000, 4000, 6000, 8000, 20000], 
-                                        labels=['0-2K', '2K-4K', '4K-6K', '6K-8K', '8K+'])
-                    balance_counts = balance_data.value_counts()
-                    st.bar_chart(balance_counts)
+                    st.markdown("**Balance Distribution**")
+                    st.bar_chart(audience['total_balance'].value_counts(bins=10))
                 
                 with col2:
                     st.markdown("**Product Holdings**")
@@ -390,7 +407,7 @@ elif section == "🎯 Audience Generation":
                     st.bar_chart(product_counts)
             
             with tab3:
-                st.dataframe(audience[['customer_id', 'age', 'income_segment', 'region', 'total_balance', 'product_holdings']].head(10))
+                st.dataframe(audience[['customer_id', 'age', 'income_segment', 'region', 'total_balance', 'product_holdings']])
             
             st.markdown("##### 📤 Export Audience")
             if st.button("Download Audience as CSV", use_container_width=True):
@@ -470,7 +487,58 @@ elif section == "🗺️ Geographic Analysis":
     with col1:
         st.markdown("#### 🇪🇸 Spain Regional Analysis")
         
-        # Display Spain regions using fixed function
+        # Prepare data for Spain map
+        spanish_data = []
+        for region, info in spanish_regions.items():
+            region_customers = df_customers[df_customers['region'] == region]
+            spanish_data.append({
+                'region': region,
+                'lat': info['lat'],
+                'lon': info['lon'],
+                'customers': len(region_customers),
+                'avg_balance': region_customers['total_balance'].mean(),
+                'conversion_rate': info['conversion']  # Now using the actual conversion rate from the fixed data
+            })
+        
+        df_spain = pd.DataFrame(spanish_data)
+        
+        # Spain map
+        layer = pdk.Layer(
+            "ScatterplotLayer",
+            df_spain,
+            pickable=True,
+            opacity=0.8,
+            stroked=True,
+            filled=True,
+            radius_scale=100,
+            radius_min_pixels=5,
+            radius_max_pixels=50,
+            line_width_min_pixels=1,
+            get_position=["lon", "lat"],
+            get_radius="customers",
+            get_fill_color=[255, 107, 107, 180],
+            get_line_color=[0, 0, 0],
+        )
+        
+        view_state = pdk.ViewState(
+            longitude=-3.7038,
+            latitude=40.4168,
+            zoom=5,
+            pitch=0,
+        )
+        
+        r = pdk.Deck(
+            layers=[layer],
+            initial_view_state=view_state,
+            tooltip={
+                "html": "<b>{region}</b><br>Customers: {customers}<br>Avg Balance: €{avg_balance:.0f}<br>Conversion: {conversion_rate}%",
+                "style": {"color": "white"}
+            }
+        )
+        
+        st.pydeck_chart(r)
+        
+        # Display Spain regions using the fixed function
         display_geographic_data(spanish_regions, "Spanish Regions Performance")
         
         # Additional Spain metrics
@@ -493,7 +561,56 @@ elif section == "🗺️ Geographic Analysis":
     with col2:
         st.markdown("#### 🇪🇺 European Market Analysis")
         
-        # Display European countries using fixed function
+        # Prepare data for Europe map
+        europe_data = []
+        for country, info in european_countries.items():
+            europe_data.append({
+                'country': country,
+                'lat': info['lat'],
+                'lon': info['lon'],
+                'customers': info['customers'],
+                'conversion_rate': info['conversion']
+            })
+        
+        df_europe = pd.DataFrame(europe_data)
+        
+        # Europe map
+        layer_europe = pdk.Layer(
+            "ScatterplotLayer",
+            df_europe,
+            pickable=True,
+            opacity=0.8,
+            stroked=True,
+            filled=True,
+            radius_scale=200,
+            radius_min_pixels=8,
+            radius_max_pixels=80,
+            line_width_min_pixels=1,
+            get_position=["lon", "lat"],
+            get_radius="customers",
+            get_fill_color=[78, 205, 196, 180],
+            get_line_color=[0, 0, 0],
+        )
+        
+        view_state_europe = pdk.ViewState(
+            longitude=10.0,
+            latitude=50.0,
+            zoom=3,
+            pitch=0,
+        )
+        
+        r_europe = pdk.Deck(
+            layers=[layer_europe],
+            initial_view_state=view_state_europe,
+            tooltip={
+                "html": "<b>{country}</b><br>Customers: {customers}<br>Conversion: {conversion_rate}%",
+                "style": {"color": "white"}
+            }
+        )
+        
+        st.pydeck_chart(r_europe)
+        
+        # Display European countries using the fixed function
         display_geographic_data(european_countries, "European Markets Performance")
         
         # Additional Europe metrics
