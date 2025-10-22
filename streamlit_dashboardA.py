@@ -3,10 +3,6 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 import io
-import matplotlib.pyplot as plt
-import matplotlib
-matplotlib.use('Agg')
-import seaborn as sns
 import pydeck as pdk
 
 # Set page configuration with royal blue theme
@@ -65,6 +61,18 @@ st.markdown("""
     }
     div[data-testid="stSidebarNav"] {
         background: rgba(255, 255, 255, 0.1);
+    }
+    .funnel-container {
+        background: rgba(255, 255, 255, 0.1);
+        padding: 20px;
+        border-radius: 10px;
+        margin: 10px 0;
+    }
+    .chart-container {
+        background: rgba(255, 255, 255, 0.1);
+        padding: 15px;
+        border-radius: 10px;
+        margin: 10px 0;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -203,6 +211,75 @@ def display_geographic_data(regions_data, title):
         chart_df = df_chart.set_index('Region')
         st.bar_chart(chart_df['Conversion Rate'])
 
+# Create funnel visualization using Streamlit components
+def display_funnel_chart(df_funnel):
+    st.markdown("#### 📈 Funnel Analysis")
+    
+    with st.container():
+        st.markdown('<div class="funnel-container">', unsafe_allow_html=True)
+        
+        # Display funnel stages as metrics
+        cols = st.columns(len(df_funnel))
+        for idx, (_, row) in enumerate(df_funnel.iterrows()):
+            with cols[idx]:
+                st.metric(
+                    label=row['stage'],
+                    value=f"{row['count']:,}",
+                    delta=f"{row['percentage']}%"
+                )
+        
+        # Display funnel as a bar chart
+        funnel_chart_data = df_funnel.set_index('stage')[['percentage']]
+        st.bar_chart(funnel_chart_data)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+
+# Create income distribution visualization
+def display_income_distribution(df_customers):
+    st.markdown("#### 📊 Customer Distribution by Income Segment")
+    
+    with st.container():
+        st.markdown('<div class="chart-container">', unsafe_allow_html=True)
+        
+        income_dist = df_customers['income_segment'].value_counts()
+        
+        # Display as metrics
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Low Income", f"{income_dist.get('Low', 0):,}")
+        with col2:
+            st.metric("Medium Income", f"{income_dist.get('Medium', 0):,}")
+        with col3:
+            st.metric("High Income", f"{income_dist.get('High', 0):,}")
+        
+        # Display as bar chart
+        st.bar_chart(income_dist)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+
+# Create campaign performance visualization
+def display_campaign_performance(df_campaigns):
+    st.markdown("#### 📈 Campaign Performance Overview")
+    
+    with st.container():
+        st.markdown('<div class="chart-container">', unsafe_allow_html=True)
+        
+        campaign_perf = df_campaigns.groupby('campaign_name')['conversion_rate'].mean().sort_values(ascending=False)
+        
+        # Display campaign performance as metrics in columns
+        cols = st.columns(len(campaign_perf))
+        for idx, (campaign, rate) in enumerate(campaign_perf.items()):
+            with cols[idx]:
+                st.metric(
+                    label=campaign,
+                    value=f"{rate*100:.1f}%"
+                )
+        
+        # Display as bar chart
+        st.bar_chart(campaign_perf * 100)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+
 # Sidebar navigation
 st.sidebar.markdown("<h1 style='color: white; font-family: Helvetica;'>📊 Navigation</h1>", unsafe_allow_html=True)
 section = st.sidebar.radio("", 
@@ -258,68 +335,30 @@ if section == "🏠 Dashboard Overview":
         st.markdown("#### 📊 Customer Data Table")
         st.dataframe(df_customers[['customer_id', 'age', 'income_segment', 'region', 'total_balance', 'product_holdings']].head(10))
         
-        st.markdown("#### 📈 Funnel Analysis")
-        fig, ax = plt.subplots(figsize=(10, 6))
-        fig.patch.set_facecolor('#1E3A8A')
-        ax.set_facecolor('#1E3A8A')
+        # Use the new funnel display function
+        display_funnel_chart(df_funnel)
         
-        # Create funnel chart
-        stages = df_funnel['stage']
-        percentages = df_funnel['percentage']
+        st.markdown("#### 💰 Financial Performance")
         
-        bars = ax.barh(stages, percentages, color=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7'])
-        ax.set_xlabel('Conversion Rate (%)', color='white', fontfamily='Helvetica')
-        ax.set_ylabel('Funnel Stage', color='white', fontfamily='Helvetica')
-        ax.tick_params(colors='white', labelsize=10)
-        ax.grid(True, alpha=0.3, color='white')
-        
-        # Add value labels on bars
-        for bar, percentage in zip(bars, percentages):
-            ax.text(bar.get_width() + 1, bar.get_y() + bar.get_height()/2, 
-                   f'{percentage}%', ha='left', va='center', color='white', fontfamily='Helvetica', fontweight='bold')
-        
-        plt.tight_layout()
-        st.pyplot(fig)
+        # Revenue trend
+        st.markdown("**Monthly Revenue Trend**")
+        revenue_data = df_financial[['month', 'revenue']].copy()
+        revenue_data['month'] = revenue_data['month'].astype(str)
+        revenue_chart_data = revenue_data.set_index('month')['revenue']
+        st.line_chart(revenue_chart_data)
     
     with col2:
-        st.markdown("#### 📊 Customer Distribution by Income Segment")
-        income_dist = df_customers['income_segment'].value_counts()
+        # Use the new income distribution function
+        display_income_distribution(df_customers)
         
-        fig, ax = plt.subplots(figsize=(10, 6))
-        fig.patch.set_facecolor('#1E3A8A')
-        ax.set_facecolor('#1E3A8A')
+        # Use the new campaign performance function
+        display_campaign_performance(df_campaigns)
         
-        colors = ['#FF6B6B', '#4ECDC4', '#45B7D1']
-        wedges, texts, autotexts = ax.pie(income_dist.values, labels=income_dist.index, autopct='%1.1f%%',
-                                         colors=colors, startangle=90)
-        
-        for text in texts:
-            text.set_color('white')
-            text.set_fontfamily('Helvetica')
-        for autotext in autotexts:
-            autotext.set_color('white')
-            autotext.set_fontfamily('Helvetica')
-            autotext.set_fontweight('bold')
-        
-        st.pyplot(fig)
-        
-        st.markdown("#### 📈 Campaign Performance Overview")
-        campaign_perf = df_campaigns.groupby('campaign_name')['conversion_rate'].mean().sort_values(ascending=False)
-        
-        fig, ax = plt.subplots(figsize=(10, 6))
-        fig.patch.set_facecolor('#1E3A8A')
-        ax.set_facecolor('#1E3A8A')
-        
-        bars = ax.barh(range(len(campaign_perf)), campaign_perf.values * 100, 
-                      color=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7'])
-        ax.set_yticks(range(len(campaign_perf)))
-        ax.set_yticklabels(campaign_perf.index, color='white', fontfamily='Helvetica')
-        ax.set_xlabel('Conversion Rate (%)', color='white', fontfamily='Helvetica')
-        ax.tick_params(colors='white')
-        ax.grid(True, alpha=0.3, color='white')
-        
-        plt.tight_layout()
-        st.pyplot(fig)
+        st.markdown("#### 📊 Assets Under Management")
+        aum_data = df_financial[['month', 'aum']].copy()
+        aum_data['month'] = aum_data['month'].astype(str)
+        aum_chart_data = aum_data.set_index('month')['aum']
+        st.area_chart(aum_chart_data)
 
 elif section == "🎯 Audience Generation":
     st.markdown("<h2 class='section-header'>🎯 Campaign Audience Generation</h2>", unsafe_allow_html=True)
@@ -399,7 +438,10 @@ elif section == "🎯 Audience Generation":
                 col1, col2 = st.columns(2)
                 with col1:
                     st.markdown("**Balance Distribution**")
-                    st.bar_chart(audience['total_balance'].value_counts(bins=10))
+                    # Create balance ranges for better visualization
+                    balance_ranges = pd.cut(audience['total_balance'], bins=5)
+                    balance_counts = balance_ranges.value_counts().sort_index()
+                    st.bar_chart(balance_counts)
                 
                 with col2:
                     st.markdown("**Product Holdings**")
@@ -407,7 +449,7 @@ elif section == "🎯 Audience Generation":
                     st.bar_chart(product_counts)
             
             with tab3:
-                st.dataframe(audience[['customer_id', 'age', 'income_segment', 'region', 'total_balance', 'product_holdings']])
+                st.dataframe(audience[['customer_id', 'age', 'income_segment', 'region', 'total_balance', 'product_holdings']].head(15))
             
             st.markdown("##### 📤 Export Audience")
             if st.button("Download Audience as CSV", use_container_width=True):
