@@ -352,9 +352,9 @@ class GeoWeatherIntelligence:
             }
         ]
         
-        # Add seasonal alerts
+        # Add seasonal alerts - FIXED INDENTATION HERE
         current_month = base_time.month
-        if current_month in [6, 7, 8]:  Summer
+        if current_month in [6, 7, 8]:  # Summer
             alerts.append({
                 'type': 'Heat Advisory',
                 'severity': 'High',
@@ -363,7 +363,7 @@ class GeoWeatherIntelligence:
                 'start': base_time.strftime('%Y-%m-%d %H:%M'),
                 'end': (base_time + timedelta(days=3)).strftime('%Y-%m-%d %H:%M')
             })
-        elif current_month in [12, 1, 2]:  Winter
+        elif current_month in [12, 1, 2]:  # Winter
             alerts.append({
                 'type': 'Winter Weather',
                 'severity': 'Moderate',
@@ -553,7 +553,7 @@ def show_dashboard():
     st.markdown(f"<div class='section-header'>🌍 Earth Analytics Dashboard - {city}</div>", unsafe_allow_html=True)
     
     # Location Overview Card
-    st.markdown("""
+    st.markdown(f"""
     <div class='data-card'>
         <h3>📍 Location Overview</h3>
         <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 15px;'>
@@ -563,17 +563,11 @@ def show_dashboard():
             </div>
             <div>
                 <p><strong>Search Radius:</strong> {radius} km</p>
-                <p><strong>Last Updated:</strong> {current_time}</p>
+                <p><strong>Last Updated:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
             </div>
         </div>
     </div>
-    """.format(
-        city=city,
-        lat=lat, 
-        lon=lon,
-        radius=radius,
-        current_time=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    ), unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
     
     # KPI Cards
     col1, col2, col3, col4 = st.columns(4)
