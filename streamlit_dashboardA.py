@@ -170,7 +170,7 @@ df_financial = st.session_state.df_financial
 spanish_regions = st.session_state.spanish_regions
 european_countries = st.session_state.european_countries
 
-# Create geographic visualization using Streamlit components (no HTML)
+# Fixed geographic visualization function
 def display_geographic_data(regions_data, title):
     st.markdown(f"#### {title}")
     
@@ -188,10 +188,23 @@ def display_geographic_data(regions_data, title):
     df_geo = pd.DataFrame(geo_data)
     st.dataframe(df_geo, use_container_width=True)
     
-    # Display conversion rates as a simple bar chart
+    # Display conversion rates as a simple bar chart - FIXED
     st.markdown(f"**{title} - Conversion Rates**")
-    conv_data = pd.DataFrame([{'Region': k, 'Conversion %': v['conversion']} for k, v in regions_data.items()])
-    st.bar_chart(conv_data.set_index('Region'))
+    
+    # Create a proper DataFrame for the chart
+    chart_data = []
+    for region, data in regions_data.items():
+        chart_data.append({
+            'Region': region,
+            'Conversion Rate': data['conversion']
+        })
+    
+    df_chart = pd.DataFrame(chart_data)
+    
+    # Use Streamlit's native bar chart with proper data
+    if not df_chart.empty:
+        chart_df = df_chart.set_index('Region')
+        st.bar_chart(chart_df['Conversion Rate'])
 
 # Sidebar navigation
 st.sidebar.markdown("<h1 style='color: white; font-family: Helvetica;'>📊 Navigation</h1>", unsafe_allow_html=True)
@@ -250,15 +263,19 @@ if section == "🏠 Dashboard Overview":
         
         st.markdown("#### 💰 Financial Performance")
         
-        # Revenue trend - FIXED: Use numeric data
+        # Revenue trend - FIXED: Use proper data formatting
         st.markdown("**Monthly Revenue Trend**")
-        revenue_data = df_financial[['month', 'revenue']].set_index('month')
-        st.line_chart(revenue_data)
+        revenue_data = df_financial[['month', 'revenue']].copy()
+        revenue_data['month'] = revenue_data['month'].astype(str)
+        revenue_chart_data = revenue_data.set_index('month')['revenue']
+        st.line_chart(revenue_chart_data)
         
         # Profit trend
         st.markdown("**Monthly Profit Trend**")
-        profit_data = df_financial[['month', 'profit']].set_index('month')
-        st.line_chart(profit_data)
+        profit_data = df_financial[['month', 'profit']].copy()
+        profit_data['month'] = profit_data['month'].astype(str)
+        profit_chart_data = profit_data.set_index('month')['profit']
+        st.line_chart(profit_chart_data)
     
     with col2:
         st.markdown("#### 📊 Customer Distribution by Income Segment")
@@ -277,8 +294,10 @@ if section == "🏠 Dashboard Overview":
                 st.metric("Rate", f"{rate*100:.1f}%")
         
         st.markdown("#### 📊 Assets Under Management")
-        aum_data = df_financial[['month', 'aum']].set_index('month')
-        st.area_chart(aum_data)
+        aum_data = df_financial[['month', 'aum']].copy()
+        aum_data['month'] = aum_data['month'].astype(str)
+        aum_chart_data = aum_data.set_index('month')['aum']
+        st.area_chart(aum_chart_data)
 
 elif section == "🎯 Audience Generation":
     st.markdown("<h2 class='section-header'>🎯 Campaign Audience Generation</h2>", unsafe_allow_html=True)
@@ -420,14 +439,18 @@ elif section == "📈 Campaign Analytics":
     
     with col1:
         st.markdown("**Conversion Rate Trend**")
-        conv_data = campaign_data[['month', 'conversion_rate']].set_index('month')
+        conv_data = campaign_data[['month', 'conversion_rate']].copy()
         conv_data['conversion_rate'] = conv_data['conversion_rate'] * 100
-        st.line_chart(conv_data)
+        conv_data['month'] = conv_data['month'].astype(str)
+        conv_chart_data = conv_data.set_index('month')['conversion_rate']
+        st.line_chart(conv_chart_data)
     
     with col2:
         st.markdown("**Revenue Trend**")
-        revenue_data = campaign_data[['month', 'revenue_generated']].set_index('month')
-        st.line_chart(revenue_data)
+        revenue_data = campaign_data[['month', 'revenue_generated']].copy()
+        revenue_data['month'] = revenue_data['month'].astype(str)
+        revenue_chart_data = revenue_data.set_index('month')['revenue_generated']
+        st.line_chart(revenue_chart_data)
     
     st.markdown("#### 📈 Cross-Campaign Comparison")
     
