@@ -3,10 +3,6 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 import io
-import matplotlib.pyplot as plt
-import matplotlib
-matplotlib.use('Agg')
-import seaborn as sns
 import pydeck as pdk
 
 # Set page configuration with royal blue theme
@@ -65,6 +61,21 @@ st.markdown("""
     }
     div[data-testid="stSidebarNav"] {
         background: rgba(255, 255, 255, 0.1);
+    }
+    .funnel-container {
+        background: rgba(255, 255, 255, 0.1);
+        padding: 20px;
+        border-radius: 10px;
+        margin: 10px 0;
+    }
+    .funnel-stage {
+        background: linear-gradient(90deg, #FF6B6B, #4ECDC4);
+        margin: 10px 0;
+        padding: 15px;
+        border-radius: 5px;
+        text-align: center;
+        color: white;
+        font-weight: bold;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -156,6 +167,26 @@ df_funnel = st.session_state.df_funnel
 spanish_regions = st.session_state.spanish_regions
 european_countries = st.session_state.european_countries
 
+# Create funnel chart using HTML/CSS
+def create_funnel_chart(funnel_data):
+    html_funnel = """
+    <div class="funnel-container">
+        <h4 style="color: white; text-align: center; font-family: Helvetica;">Conversion Funnel</h4>
+    """
+    
+    colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7']
+    
+    for i, (_, row) in enumerate(funnel_data.iterrows()):
+        width = row['percentage'] * 2  # Scale for visual effect
+        html_funnel += f"""
+        <div class="funnel-stage" style="background: linear-gradient(90deg, {colors[i]}, {colors[(i+1)%len(colors)]}); width: {width}%; margin: 0 auto;">
+            {row['stage']}: {row['count']:,} customers ({row['percentage']}%)
+        </div>
+        """
+    
+    html_funnel += "</div>"
+    return html_funnel
+
 # Sidebar navigation
 st.sidebar.markdown("<h1 style='color: white; font-family: Helvetica;'>📊 Navigation</h1>", unsafe_allow_html=True)
 section = st.sidebar.radio("", 
@@ -212,67 +243,37 @@ if section == "🏠 Dashboard Overview":
         st.dataframe(df_customers[['customer_id', 'age', 'income_segment', 'region', 'total_balance', 'product_holdings']].head(10))
         
         st.markdown("#### 📈 Funnel Analysis")
-        fig, ax = plt.subplots(figsize=(10, 6))
-        fig.patch.set_facecolor('#1E3A8A')
-        ax.set_facecolor('#1E3A8A')
+        # Display HTML funnel
+        st.markdown(create_funnel_chart(df_funnel), unsafe_allow_html=True)
         
-        # Create funnel chart
-        stages = df_funnel['stage']
-        percentages = df_funnel['percentage']
-        
-        bars = ax.barh(stages, percentages, color=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7'])
-        ax.set_xlabel('Conversion Rate (%)', color='white', fontfamily='Helvetica')
-        ax.set_ylabel('Funnel Stage', color='white', fontfamily='Helvetica')
-        ax.tick_params(colors='white', labelsize=10)
-        ax.grid(True, alpha=0.3, color='white')
-        
-        # Add value labels on bars
-        for bar, percentage in zip(bars, percentages):
-            ax.text(bar.get_width() + 1, bar.get_y() + bar.get_height()/2, 
-                   f'{percentage}%', ha='left', va='center', color='white', fontfamily='Helvetica', fontweight='bold')
-        
-        plt.tight_layout()
-        st.pyplot(fig)
+        # Additional funnel metrics
+        col_f1, col_f2, col_f3 = st.columns(3)
+        with col_f1:
+            st.metric("Awareness", "10,000")
+        with col_f2:
+            st.metric("Conversion", "1,500")
+        with col_f3:
+            st.metric("Overall Rate", "15%")
     
     with col2:
         st.markdown("#### 📊 Customer Distribution by Income Segment")
         income_dist = df_customers['income_segment'].value_counts()
-        
-        fig, ax = plt.subplots(figsize=(10, 6))
-        fig.patch.set_facecolor('#1E3A8A')
-        ax.set_facecolor('#1E3A8A')
-        
-        colors = ['#FF6B6B', '#4ECDC4', '#45B7D1']
-        wedges, texts, autotexts = ax.pie(income_dist.values, labels=income_dist.index, autopct='%1.1f%%',
-                                         colors=colors, startangle=90)
-        
-        for text in texts:
-            text.set_color('white')
-            text.set_fontfamily('Helvetica')
-        for autotext in autotexts:
-            autotext.set_color('white')
-            autotext.set_fontfamily('Helvetica')
-            autotext.set_fontweight('bold')
-        
-        st.pyplot(fig)
+        st.bar_chart(income_dist)
         
         st.markdown("#### 📈 Campaign Performance Overview")
         campaign_perf = df_campaigns.groupby('campaign_name')['conversion_rate'].mean().sort_values(ascending=False)
         
-        fig, ax = plt.subplots(figsize=(10, 6))
-        fig.patch.set_facecolor('#1E3A8A')
-        ax.set_facecolor('#1E3A8A')
+        # Display campaign performance as metrics
+        for campaign, rate in campaign_perf.items():
+            col_c1, col_c2 = st.columns([3, 1])
+            with col_c1:
+                st.write(f"**{campaign}**")
+            with col_c2:
+                st.metric("Rate", f"{rate*100:.1f}%")
         
-        bars = ax.barh(range(len(campaign_perf)), campaign_perf.values * 100, 
-                      color=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7'])
-        ax.set_yticks(range(len(campaign_perf)))
-        ax.set_yticklabels(campaign_perf.index, color='white', fontfamily='Helvetica')
-        ax.set_xlabel('Conversion Rate (%)', color='white', fontfamily='Helvetica')
-        ax.tick_params(colors='white')
-        ax.grid(True, alpha=0.3, color='white')
-        
-        plt.tight_layout()
-        st.pyplot(fig)
+        st.markdown("#### 🌍 Regional Distribution")
+        region_dist = df_customers['region'].value_counts()
+        st.dataframe(region_dist)
 
 elif section == "🎯 Audience Generation":
     st.markdown("<h2 class='section-header'>🎯 Campaign Audience Generation</h2>", unsafe_allow_html=True)
@@ -543,27 +544,14 @@ elif section == "🗺️ Geographic Analysis":
         st.markdown("#### European Markets Data")
         st.dataframe(df_europe[['country', 'customers', 'conversion_rate']])
         
-        # Funnel chart for European markets
-        st.markdown("#### 📊 European Conversion Funnel")
-        fig, ax = plt.subplots(figsize=(10, 6))
-        fig.patch.set_facecolor('#1E3A8A')
-        ax.set_facecolor('#1E3A8A')
-        
-        countries = df_europe['country']
-        conversions = df_europe['conversion_rate']
-        
-        bars = ax.bar(countries, conversions, color=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD'])
-        ax.set_ylabel('Conversion Rate (%)', color='white', fontfamily='Helvetica')
-        ax.set_xlabel('Country', color='white', fontfamily='Helvetica')
-        ax.tick_params(colors='white', rotation=45)
-        ax.grid(True, alpha=0.3, color='white')
-        
-        for bar, conversion in zip(bars, conversions):
-            ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.1, 
-                   f'{conversion}%', ha='center', va='bottom', color='white', fontfamily='Helvetica')
-        
-        plt.tight_layout()
-        st.pyplot(fig)
+        # European conversion metrics
+        st.markdown("#### 📊 European Conversion Metrics")
+        for country in df_europe.itertuples():
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.write(f"**{country.country}**")
+            with col2:
+                st.metric("Rate", f"{country.conversion_rate}%")
 
 elif section == "🚀 Campaign Execution":
     st.markdown("<h2 class='section-header'>🚀 Campaign Programming & Execution</h2>", unsafe_allow_html=True)
