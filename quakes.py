@@ -1,11 +1,8 @@
 import streamlit as st
 import requests
 import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-from datetime import datetime
 import numpy as np
-import math
+from datetime import datetime
 
 # Page configuration
 st.set_page_config(
@@ -15,25 +12,20 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Advanced Color Theory Palette - Earth & Sky inspired
+# Advanced Color Theory Palette
 COLOR_THEORY = {
-    # Primary Earth Tones
-    "earth_green": "#2E8B57",      # Sea Green - stability, growth
-    "deep_blue": "#1E6FA9",        # Trust, calmness
-    "warm_amber": "#FF8C42",       # Energy, alerts
-    "rich_clay": "#D35400",        # Strength, earthquakes
-    
-    # Secondary Nature Palette
-    "forest_green": "#228B22",     # Nature, safety
-    "sky_blue": "#4682B4",         # Openness, weather
-    "sunset_orange": "#FF6B35",    # Warning, attention
-    "storm_gray": "#2C3E50",       # Depth, data
-    
-    # Background & UI
-    "cream_white": "#FDF6E3",      # Warm background
-    "card_white": "#FFFFFF",       # Clean cards
-    "text_dark": "#2C3E50",        # Readable text
-    "text_light": "#7F8C8D"        # Secondary text
+    "earth_green": "#2E8B57",
+    "deep_blue": "#1E6FA9",
+    "warm_amber": "#FF8C42",
+    "rich_clay": "#D35400",
+    "forest_green": "#228B22",
+    "sky_blue": "#4682B4",
+    "sunset_orange": "#FF6B35",
+    "storm_gray": "#2C3E50",
+    "cream_white": "#FDF6E3",
+    "card_white": "#FFFFFF",
+    "text_dark": "#2C3E50",
+    "text_light": "#7F8C8D"
 }
 
 # Custom CSS with advanced styling
@@ -125,6 +117,27 @@ st.markdown(f"""
         background: linear-gradient(180deg, {COLOR_THEORY['storm_gray']}, {COLOR_THEORY['deep_blue']});
         color: white;
     }}
+    
+    .map-container {{
+        background: {COLOR_THEORY['card_white']};
+        padding: 20px;
+        border-radius: 15px;
+        box-shadow: 0 6px 15px rgba(44, 62, 80, 0.1);
+        margin: 15px 0;
+    }}
+    
+    .chart-bar {{
+        background: {COLOR_THEORY['earth_green']};
+        height: 20px;
+        border-radius: 10px;
+        margin: 5px 0;
+        transition: all 0.3s ease;
+    }}
+    
+    .chart-bar:hover {{
+        transform: scale(1.02);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -177,104 +190,113 @@ class GeoWeatherIntelligence:
             st.error(f"Error fetching weather data: {e}")
             return []
 
-def create_custom_chart(chart_type, data, title, colors):
-    """Create custom matplotlib charts with enhanced styling"""
-    fig, ax = plt.subplots(figsize=(10, 6), facecolor=COLOR_THEORY['card_white'])
+def create_text_barchart(data, title, max_width=300):
+    """Create a text-based bar chart using HTML/CSS"""
+    if not data:
+        return "<p>No data available</p>"
     
-    # Set style
-    ax.set_facecolor(COLOR_THEORY['card_white'])
-    fig.patch.set_facecolor(COLOR_THEORY['card_white'])
+    max_value = max(data.values()) if data else 1
+    chart_html = f"<h4 style='color: {COLOR_THEORY['storm_gray']}; margin-bottom: 15px;'>{title}</h4>"
     
-    if chart_type == "bar":
-        bars = ax.bar(range(len(data)), list(data.values()), 
-                     color=colors, alpha=0.8, edgecolor=COLOR_THEORY['storm_gray'], linewidth=1)
-        ax.set_xticks(range(len(data)))
-        ax.set_xticklabels(list(data.keys()), rotation=45)
-        
-        # Add value labels on bars
-        for bar in bars:
-            height = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width()/2., height,
-                   f'{height:.1f}', ha='center', va='bottom', fontweight='bold')
+    for label, value in data.items():
+        width = (value / max_value) * max_width
+        chart_html += f"""
+        <div style='display: flex; align-items: center; margin: 8px 0;'>
+            <span style='width: 120px; color: {COLOR_THEORY['text_dark']}; font-weight: 600;'>{label}</span>
+            <div class='chart-bar' style='width: {width}px; background: {COLOR_THEORY['earth_green']};'></div>
+            <span style='margin-left: 10px; color: {COLOR_THEORY['text_light']}; font-weight: 600;'>{value}</span>
+        </div>
+        """
     
-    elif chart_type == "line":
-        ax.plot(list(data.keys()), list(data.values()), 
-               color=colors[0], linewidth=3, marker='o', markersize=8)
-        ax.fill_between(list(data.keys()), list(data.values()), 
-                       alpha=0.3, color=colors[0])
-    
-    elif chart_type == "pie":
-        wedges, texts, autotexts = ax.pie(data.values(), labels=data.keys(), 
-                                         autopct='%1.1f%%', colors=colors,
-                                         startangle=90, shadow=True)
-        for autotext in autotexts:
-            autotext.set_color('white')
-            autotext.set_fontweight('bold')
-    
-    # Styling
-    ax.set_title(title, fontsize=16, fontweight='bold', 
-                color=COLOR_THEORY['storm_gray'], pad=20)
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.spines['left'].set_color(COLOR_THEORY['text_light'])
-    ax.spines['bottom'].set_color(COLOR_THEORY['text_light'])
-    ax.tick_params(colors=COLOR_THEORY['text_light'])
-    ax.grid(True, alpha=0.3, linestyle='--')
-    
-    plt.tight_layout()
-    return fig
+    return chart_html
 
-def create_2d_earthquake_map(earthquakes, center_lat, center_lon, city_name):
-    """Create a 2D earthquake map visualization"""
+def create_simple_pie_chart(data, title):
+    """Create a simple pie chart visualization using text"""
+    if not data:
+        return "<p>No data available</p>"
+    
+    total = sum(data.values())
+    chart_html = f"<h4 style='color: {COLOR_THEORY['storm_gray']}; margin-bottom: 15px;'>{title}</h4>"
+    
+    colors = [COLOR_THEORY['earth_green'], COLOR_THEORY['deep_blue'], 
+              COLOR_THEORY['warm_amber'], COLOR_THEORY['sky_blue']]
+    
+    for i, (label, value) in enumerate(data.items()):
+        percentage = (value / total) * 100 if total > 0 else 0
+        color = colors[i % len(colors)]
+        
+        chart_html += f"""
+        <div style='display: flex; align-items: center; margin: 10px 0; padding: 8px; background: {color}15; border-radius: 8px;'>
+            <div style='width: 15px; height: 15px; background: {color}; border-radius: 50%; margin-right: 10px;'></div>
+            <span style='flex: 1; color: {COLOR_THEORY['text_dark']}; font-weight: 600;'>{label}</span>
+            <span style='color: {COLOR_THEORY['text_light']}; font-weight: 600;'>{value} ({percentage:.1f}%)</span>
+        </div>
+        """
+    
+    return chart_html
+
+def create_2d_text_map(earthquakes, center_lat, center_lon, city_name):
+    """Create a text-based 2D map visualization"""
     if not earthquakes:
-        return None
+        return "<p>No earthquake data available for mapping</p>"
     
-    fig, ax = plt.subplots(figsize=(12, 8), facecolor=COLOR_THEORY['card_white'])
-    fig.patch.set_facecolor(COLOR_THEORY['card_white'])
-    ax.set_facecolor('#E8F4F8')
-    
-    # Plot earthquakes
-    lats, lons, mags = [], [], []
-    for eq in earthquakes[:50]:  # Limit to 50 for clarity
+    # Filter and process earthquake data
+    eq_points = []
+    for eq in earthquakes[:20]:  # Limit to 20 for clarity
         if 'lat' in eq and 'lon' in eq and 'magnitude' in eq:
-            lats.append(float(eq['lat']))
-            lons.append(float(eq['lon']))
-            mags.append(float(eq['magnitude']))
+            try:
+                lat = float(eq['lat'])
+                lon = float(eq['lon'])
+                mag = float(eq['magnitude'])
+                location = eq.get('location', 'Unknown')
+                eq_points.append((lat, lon, mag, location))
+            except (ValueError, TypeError):
+                continue
     
-    if not lats:
-        return None
+    if not eq_points:
+        return "<p>No valid earthquake coordinates found</p>"
     
-    # Create scatter plot with size based on magnitude
-    scatter = ax.scatter(lons, lats, s=[m*20 for m in mags], 
-                        c=mags, cmap='YlOrRd', alpha=0.7, 
-                        edgecolors=COLOR_THEORY['storm_gray'], linewidth=1)
+    # Create text-based map representation
+    map_html = f"""
+    <div class='map-container'>
+        <h3 style='color: {COLOR_THEORY['storm_gray']}; text-align: center; margin-bottom: 20px;'>
+            🗺️ Earthquake Map - {city_name}
+        </h3>
+        <div style='text-align: center; color: {COLOR_THEORY['deep_blue']}; margin-bottom: 15px;'>
+            <strong>📍 Center:</strong> {center_lat:.4f}, {center_lon:.4f}
+        </div>
+    """
     
-    # Add city center
-    ax.scatter([center_lon], [center_lat], color=COLOR_THEORY['deep_blue'], 
-              s=200, marker='*', edgecolor='white', linewidth=2, 
-              label=f'Center: {city_name}')
+    # Add earthquake points
+    for i, (lat, lon, mag, location) in enumerate(eq_points[:10]):  # Show first 10
+        distance_lat = abs(lat - center_lat)
+        distance_lon = abs(lon - center_lon)
+        
+        # Simple visual indicator based on magnitude
+        marker_size = min(30, mag * 6)
+        color_intensity = min(255, mag * 40)
+        color = f"rgb(255, {max(100, 255 - color_intensity)}, 0)"
+        
+        map_html += f"""
+        <div style='margin: 10px 0; padding: 12px; background: {COLOR_THEORY['card_white']}; 
+                    border-radius: 8px; border-left: 4px solid {color}; box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>
+            <div style='display: flex; justify-content: space-between; align-items: center;'>
+                <div>
+                    <span style='font-weight: bold; color: {COLOR_THEORY['storm_gray']};'>M{mag:.1f}</span>
+                    <span style='color: {COLOR_THEORY['text_light']}; margin-left: 10px;'>{location}</span>
+                </div>
+                <div style='color: {COLOR_THEORY['text_light']}; font-size: 0.9em;'>
+                    Lat: {lat:.2f}, Lon: {lon:.2f}
+                </div>
+            </div>
+            <div style='margin-top: 5px; color: {COLOR_THEORY['text_light']}; font-size: 0.8em;'>
+                📍 Distance: {distance_lat:.2f}° lat, {distance_lon:.2f}° lon from center
+            </div>
+        </div>
+        """
     
-    # Add labels for major earthquakes
-    for i, (lat, lon, mag) in enumerate(zip(lats, lons, mags)):
-        if mag > 5.0:  # Label only major earthquakes
-            ax.annotate(f'M{mag}', (lon, lat), xytext=(5, 5), 
-                       textcoords='offset points', fontweight='bold',
-                       color=COLOR_THEORY['rich_clay'])
-    
-    # Styling
-    ax.set_title(f'Earthquake Distribution - {city_name}', 
-                fontsize=18, fontweight='bold', color=COLOR_THEORY['storm_gray'], pad=20)
-    ax.set_xlabel('Longitude', fontweight='bold', color=COLOR_THEORY['text_light'])
-    ax.set_ylabel('Latitude', fontweight='bold', color=COLOR_THEORY['text_light'])
-    ax.legend()
-    ax.grid(True, alpha=0.3, linestyle='--')
-    
-    # Add colorbar
-    cbar = plt.colorbar(scatter, ax=ax)
-    cbar.set_label('Magnitude', fontweight='bold', color=COLOR_THEORY['text_light'])
-    
-    plt.tight_layout()
-    return fig
+    map_html += "</div>"
+    return map_html
 
 def main():
     # Initialize dashboard
@@ -431,18 +453,15 @@ def show_overview_dashboard(dashboard):
     st.markdown("<h2 class='section-header'>🗺️ Seismic Activity Map</h2>", unsafe_allow_html=True)
     
     if st.session_state.earthquake_data:
-        fig = create_2d_earthquake_map(
+        map_html = create_2d_text_map(
             st.session_state.earthquake_data, 
             st.session_state.lat, 
             st.session_state.lon,
             st.session_state.city_name
         )
-        if fig:
-            st.pyplot(fig)
-        else:
-            st.info("No earthquake data available for mapping")
+        st.markdown(map_html, unsafe_allow_html=True)
     else:
-        st.info("Loading earthquake data...")
+        st.info("No earthquake data available for mapping")
     
     # Quick Stats & Alerts
     col1, col2 = st.columns(2)
@@ -461,10 +480,15 @@ def show_overview_dashboard(dashboard):
                     'Total Events': len(magnitudes)
                 }
                 
-                fig = create_custom_chart("bar", stats_data, "Earthquake Statistics", 
-                                        [COLOR_THEORY['earth_green'], COLOR_THEORY['deep_blue'], 
-                                         COLOR_THEORY['warm_amber'], COLOR_THEORY['rich_clay']])
-                st.pyplot(fig)
+                # Display stats in a nice format
+                st.markdown("""
+                <div class='data-card'>
+                """, unsafe_allow_html=True)
+                
+                for stat, value in stats_data.items():
+                    st.metric(stat, f"{value:.2f}")
+                
+                st.markdown("</div>", unsafe_allow_html=True)
     
     with col2:
         st.markdown("<h3 style='color: #2C3E50;'>🚨 Recent Alerts</h3>", unsafe_allow_html=True)
@@ -479,20 +503,20 @@ def show_overview_dashboard(dashboard):
                 st.markdown(f"""
                 <div class='data-card alert-card'>
                     <div style='display: flex; align-items: center; margin-bottom: 10px;'>
-                        <span style='background: {COLOR_THEORY['warm_amber']}; color: white; padding: 5px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: bold;'>
+                        <span style='background: {COLOR_THEORY["warm_amber"]}; color: white; padding: 5px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: bold;'>
                             {severity}
                         </span>
-                        <span style='margin-left: 10px; font-weight: bold; color: {COLOR_THEORY['storm_gray']};'>
+                        <span style='margin-left: 10px; font-weight: bold; color: {COLOR_THEORY["storm_gray"]};'>
                             {alert_type}
                         </span>
                     </div>
-                    <p style='color: {COLOR_THEORY['text_light']}; margin: 0;'>{description}</p>
+                    <p style='color: {COLOR_THEORY["text_light"]}; margin: 0;'>{description}</p>
                 </div>
                 """, unsafe_allow_html=True)
         else:
             st.markdown(f"""
             <div class='data-card'>
-                <p style='text-align: center; color: {COLOR_THEORY['text_light']};'>
+                <p style='text-align: center; color: {COLOR_THEORY["text_light"]};'>
                     ✅ No active alerts in this region
                 </p>
             </div>
@@ -516,21 +540,27 @@ def show_analytics_dashboard(dashboard):
                     elif mag < 6: mag_ranges['4-6'] += 1
                     else: mag_ranges['6+'] += 1
                 
-                fig = create_custom_chart("pie", mag_ranges, "Earthquake Magnitude Distribution",
-                                        [COLOR_THEORY['sky_blue'], COLOR_THEORY['earth_green'], 
-                                         COLOR_THEORY['warm_amber'], COLOR_THEORY['rich_clay']])
-                st.pyplot(fig)
+                # Remove empty ranges
+                mag_ranges = {k: v for k, v in mag_ranges.items() if v > 0}
+                
+                st.markdown("""
+                <div class='data-card'>
+                """, unsafe_allow_html=True)
+                st.markdown(create_simple_pie_chart(mag_ranges, "Earthquake Magnitude Distribution"), unsafe_allow_html=True)
+                st.markdown("</div>", unsafe_allow_html=True)
     
     with col2:
         # Weather Data Analysis
         if st.session_state.weather_data:
             weather_df = pd.DataFrame(st.session_state.weather_data)
             if not weather_df.empty and 'temperature' in weather_df.columns:
-                temp_data = weather_df['temperature'].value_counts().head(10)
-                if not temp_data.empty:
-                    fig = create_custom_chart("bar", temp_data, "Temperature Frequency",
-                                            [COLOR_THEORY['deep_blue']] * len(temp_data))
-                    st.pyplot(fig)
+                temp_data = dict(weather_df['temperature'].value_counts().head(8))
+                if temp_data:
+                    st.markdown("""
+                    <div class='data-card'>
+                    """, unsafe_allow_html=True)
+                    st.markdown(create_text_barchart(temp_data, "Temperature Frequency Distribution"), unsafe_allow_html=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
     
     # Additional Analytics
     st.markdown("<h2 class='section-header'>📈 Trend Analysis</h2>", unsafe_allow_html=True)
@@ -543,9 +573,12 @@ def show_analytics_dashboard(dashboard):
             'Jan': 45, 'Feb': 52, 'Mar': 48, 'Apr': 55,
             'May': 60, 'Jun': 65, 'Jul': 62, 'Aug': 58
         }
-        fig = create_custom_chart("line", time_data, "Monthly Activity Trend",
-                                [COLOR_THEORY['earth_green']])
-        st.pyplot(fig)
+        
+        st.markdown("""
+        <div class='data-card'>
+        """, unsafe_allow_html=True)
+        st.markdown(create_text_barchart(time_data, "Monthly Activity Trend"), unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
     
     with col2:
         # Alert type distribution
@@ -556,10 +589,11 @@ def show_analytics_dashboard(dashboard):
                 alert_types[alert_type] = alert_types.get(alert_type, 0) + 1
             
             if alert_types:
-                fig = create_custom_chart("bar", alert_types, "Alert Type Distribution",
-                                        [COLOR_THEORY['warm_amber'], COLOR_THEORY['rich_clay'], 
-                                         COLOR_THEORY['sunset_orange']])
-                st.pyplot(fig)
+                st.markdown("""
+                <div class='data-card'>
+                """, unsafe_allow_html=True)
+                st.markdown(create_text_barchart(alert_types, "Alert Type Distribution"), unsafe_allow_html=True)
+                st.markdown("</div>", unsafe_allow_html=True)
 
 def show_raw_data_explorer(dashboard):
     """Show raw data explorer with tables"""
@@ -576,19 +610,21 @@ def show_raw_data_explorer(dashboard):
             display_columns = [col for col in ['location', 'magnitude', 'depth', 'lat', 'lon', 'time'] 
                              if col in eq_df.columns]
             if display_columns:
-                st.dataframe(eq_df[display_columns].head(20), use_container_width=True)
+                st.dataframe(eq_df[display_columns].head(15), use_container_width=True)
                 
                 # Show basic statistics
                 st.markdown("#### 📊 Data Summary")
-                col1, col2, col3 = st.columns(3)
+                col1, col2, col3, col4 = st.columns(4)
                 with col1:
                     st.metric("Total Records", len(eq_df))
                 with col2:
                     if 'magnitude' in eq_df.columns:
-                        st.metric("Average Magnitude", f"{eq_df['magnitude'].mean():.2f}")
+                        st.metric("Avg Magnitude", f"{eq_df['magnitude'].mean():.2f}")
                 with col3:
                     if 'depth' in eq_df.columns:
                         st.metric("Max Depth", f"{eq_df['depth'].max():.1f} km")
+                with col4:
+                    st.metric("Data Freshness", datetime.now().strftime("%H:%M"))
         else:
             st.info("No earthquake data available")
     
@@ -596,13 +632,15 @@ def show_raw_data_explorer(dashboard):
         st.markdown("<h3 style='color: #2C3E50;'>Weather Alert Data</h3>", unsafe_allow_html=True)
         if st.session_state.severe_alerts:
             alerts_df = pd.DataFrame(st.session_state.severe_alerts)
-            st.dataframe(alerts_df.head(20), use_container_width=True)
+            st.dataframe(alerts_df.head(15), use_container_width=True)
             
             st.markdown("#### 🚨 Alert Overview")
             if 'severity' in alerts_df.columns:
                 severity_counts = alerts_df['severity'].value_counts()
-                for severity, count in severity_counts.items():
-                    st.write(f"**{severity}**: {count} alerts")
+                cols = st.columns(len(severity_counts))
+                for i, (severity, count) in enumerate(severity_counts.items()):
+                    with cols[i]:
+                        st.metric(f"{severity} Alerts", count)
         else:
             st.info("No alert data available")
     
@@ -610,17 +648,21 @@ def show_raw_data_explorer(dashboard):
         st.markdown("<h3 style='color: #2C3E50;'>Weather Observation Data</h3>", unsafe_allow_html=True)
         if st.session_state.weather_data:
             weather_df = pd.DataFrame(st.session_state.weather_data)
-            st.dataframe(weather_df.head(20), use_container_width=True)
+            st.dataframe(weather_df.head(15), use_container_width=True)
             
             st.markdown("#### 🌡️ Weather Summary")
             if 'temperature' in weather_df.columns:
-                col1, col2, col3 = st.columns(3)
+                col1, col2, col3, col4 = st.columns(4)
                 with col1:
                     st.metric("Avg Temp", f"{weather_df['temperature'].mean():.1f}°C")
                 with col2:
                     st.metric("Min Temp", f"{weather_df['temperature'].min():.1f}°C")
                 with col3:
                     st.metric("Max Temp", f"{weather_df['temperature'].max():.1f}°C")
+                with col4:
+                    st.metric("Records", len(weather_df))
+        else:
+            st.info("No weather data available")
 
 if __name__ == "__main__":
     main()
