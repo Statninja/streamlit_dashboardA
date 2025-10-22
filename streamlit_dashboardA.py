@@ -3,8 +3,13 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 import io
+import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')
+import seaborn as sns
+import pydeck as pdk
 
-# Set page configuration
+# Set page configuration with royal blue theme
 st.set_page_config(
     page_title="Banking Campaign Analytics",
     page_icon="📊",
@@ -12,38 +17,89 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for Accenture colors
+# Custom CSS for royal blue background and Helvetica font
 st.markdown("""
 <style>
+    .main {
+        background-color: #1E3A8A;
+        color: white;
+        font-family: 'Helvetica', Arial, sans-serif;
+    }
+    .stApp {
+        background: linear-gradient(135deg, #1E3A8A 0%, #3730A3 50%, #1E40AF 100%);
+        font-family: 'Helvetica', Arial, sans-serif;
+    }
     .main-header {
-        font-size: 2.5rem;
-        color: #000080;
+        font-size: 2.8rem;
+        color: white;
         font-weight: bold;
         margin-bottom: 1rem;
+        font-family: 'Helvetica', Arial, sans-serif;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
     }
-    .accenture-blue {
-        color: #000080;
-    }
-    .accenture-violet {
-        color: #A100FF;
+    .section-header {
+        font-size: 1.8rem;
+        color: white;
+        font-weight: bold;
+        margin-bottom: 1rem;
+        font-family: 'Helvetica', Arial, sans-serif;
     }
     .metric-card {
-        background-color: #f0f2f6;
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        padding: 1.5rem;
+        border-radius: 15px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        margin-bottom: 1rem;
+        color: white;
+    }
+    .stMetric {
+        background: rgba(255, 255, 255, 0.15);
         padding: 1rem;
         border-radius: 10px;
-        border-left: 4px solid #000080;
-        margin-bottom: 1rem;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+    .sidebar .sidebar-content {
+        background: rgba(30, 58, 138, 0.9);
+        backdrop-filter: blur(10px);
+    }
+    div[data-testid="stSidebarNav"] {
+        background: rgba(255, 255, 255, 0.1);
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Generate sample banking data
+# Generate enhanced sample data with geographic information
 def generate_sample_data():
     np.random.seed(42)
+    
+    # Spanish regions and coordinates
+    spanish_regions = {
+        'Madrid': {'lat': 40.4168, 'lon': -3.7038, 'customers': 180},
+        'Cataluña': {'lat': 41.3874, 'lon': 2.1686, 'customers': 160},
+        'Andalucía': {'lat': 37.3891, 'lon': -5.9845, 'customers': 150},
+        'Valencia': {'lat': 39.4699, 'lon': -0.3763, 'customers': 120},
+        'País Vasco': {'lat': 43.2630, 'lon': -2.9350, 'customers': 90},
+        'Galicia': {'lat': 42.5751, 'lon': -8.1339, 'customers': 80},
+        'Castilla y León': {'lat': 41.8357, 'lon': -4.3976, 'customers': 85},
+        'Aragón': {'lat': 41.6488, 'lon': -0.8891, 'customers': 70},
+        'Canarias': {'lat': 28.2916, 'lon': -16.6291, 'customers': 65}
+    }
+    
+    # European countries data
+    european_countries = {
+        'Spain': {'lat': 40.4637, 'lon': -3.7492, 'customers': 1000, 'conversion': 4.2},
+        'France': {'lat': 46.6034, 'lon': 1.8883, 'customers': 850, 'conversion': 3.8},
+        'Germany': {'lat': 51.1657, 'lon': 10.4515, 'customers': 920, 'conversion': 4.5},
+        'Italy': {'lat': 41.8719, 'lon': 12.5674, 'customers': 780, 'conversion': 3.9},
+        'UK': {'lat': 55.3781, 'lon': -3.4360, 'customers': 890, 'conversion': 4.1},
+        'Portugal': {'lat': 39.3999, 'lon': -8.2245, 'customers': 450, 'conversion': 3.5}
+    }
     
     # Customer base data
     customers = []
     for i in range(1000):
+        region = np.random.choice(list(spanish_regions.keys()))
         customers.append({
             'customer_id': f'CUST_{i:04d}',
             'age': np.random.randint(18, 70),
@@ -52,7 +108,9 @@ def generate_sample_data():
             'last_transaction_days': np.random.randint(1, 90),
             'total_balance': np.random.normal(5000, 3000),
             'risk_profile': np.random.choice(['Low', 'Medium', 'High'], p=[0.6, 0.3, 0.1]),
-            'region': np.random.choice(['North', 'South', 'East', 'West', 'Central']),
+            'region': region,
+            'latitude': spanish_regions[region]['lat'] + np.random.uniform(-0.5, 0.5),
+            'longitude': spanish_regions[region]['lon'] + np.random.uniform(-0.5, 0.5),
             'campaign_eligible': np.random.choice([True, False], p=[0.7, 0.3])
         })
     
@@ -77,25 +135,38 @@ def generate_sample_data():
     
     df_campaigns = pd.DataFrame(campaign_data)
     
-    return df_customers, df_campaigns
+    # Funnel data
+    funnel_data = {
+        'stage': ['Awareness', 'Interest', 'Consideration', 'Conversion', 'Loyalty'],
+        'count': [10000, 6500, 3200, 1500, 800],
+        'percentage': [100, 65, 32, 15, 8]
+    }
+    df_funnel = pd.DataFrame(funnel_data)
+    
+    return df_customers, df_campaigns, df_funnel, spanish_regions, european_countries
 
 # Initialize session state for data
-if 'df_customers' not in st.session_state:
-    st.session_state.df_customers, st.session_state.df_campaigns = generate_sample_data()
+if 'data_loaded' not in st.session_state:
+    st.session_state.df_customers, st.session_state.df_campaigns, st.session_state.df_funnel, st.session_state.spanish_regions, st.session_state.european_countries = generate_sample_data()
+    st.session_state.data_loaded = True
 
 df_customers = st.session_state.df_customers
 df_campaigns = st.session_state.df_campaigns
+df_funnel = st.session_state.df_funnel
+spanish_regions = st.session_state.spanish_regions
+european_countries = st.session_state.european_countries
 
 # Sidebar navigation
-st.sidebar.markdown("<h1 style='color: #000080;'>📊 Navigation</h1>", unsafe_allow_html=True)
-section = st.sidebar.radio("", ["🏠 Dashboard Overview", "🎯 Audience Generation", "📈 Campaign Analytics", "🚀 Campaign Execution"])
+st.sidebar.markdown("<h1 style='color: white; font-family: Helvetica;'>📊 Navigation</h1>", unsafe_allow_html=True)
+section = st.sidebar.radio("", 
+    ["🏠 Dashboard Overview", "🎯 Audience Generation", "📈 Campaign Analytics", "🗺️ Geographic Analysis", "🚀 Campaign Execution"])
 
 # Main header
 st.markdown("<h1 class='main-header'>🏦 Banking Campaign Analytics Dashboard</h1>", unsafe_allow_html=True)
-st.markdown("<p style='color: #A100FF; font-size: 1.2rem;'>Generación de Audiencias & Programación de Campañas</p>", unsafe_allow_html=True)
+st.markdown("<p style='color: white; font-size: 1.2rem; font-family: Helvetica;'>Generación de Audiencias & Programación de Campañas con PySpark</p>", unsafe_allow_html=True)
 
 if section == "🏠 Dashboard Overview":
-    st.markdown("### 📈 Executive Summary")
+    st.markdown("<h2 class='section-header'>📈 Executive Summary</h2>", unsafe_allow_html=True)
     
     # KPI Metrics
     col1, col2, col3, col4 = st.columns(4)
@@ -133,54 +204,89 @@ if section == "🏠 Dashboard Overview":
             delta="+2.1%"
         )
     
-    # Charts
+    # Charts and Data Table
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("#### 📊 Customer Distribution by Income Segment")
-        income_dist = df_customers['income_segment'].value_counts()
-        st.bar_chart(income_dist)
+        st.markdown("#### 📊 Customer Data Table")
+        st.dataframe(df_customers[['customer_id', 'age', 'income_segment', 'region', 'total_balance', 'product_holdings']].head(10))
         
-        # Additional data table
-        st.markdown("#### 👥 Customer Demographics")
-        demo_summary = df_customers.groupby('income_segment').agg({
-            'age': 'mean',
-            'total_balance': 'mean',
-            'product_holdings': 'mean'
-        }).round(1)
-        st.dataframe(demo_summary)
+        st.markdown("#### 📈 Funnel Analysis")
+        fig, ax = plt.subplots(figsize=(10, 6))
+        fig.patch.set_facecolor('#1E3A8A')
+        ax.set_facecolor('#1E3A8A')
+        
+        # Create funnel chart
+        stages = df_funnel['stage']
+        percentages = df_funnel['percentage']
+        
+        bars = ax.barh(stages, percentages, color=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7'])
+        ax.set_xlabel('Conversion Rate (%)', color='white', fontfamily='Helvetica')
+        ax.set_ylabel('Funnel Stage', color='white', fontfamily='Helvetica')
+        ax.tick_params(colors='white', labelsize=10)
+        ax.grid(True, alpha=0.3, color='white')
+        
+        # Add value labels on bars
+        for bar, percentage in zip(bars, percentages):
+            ax.text(bar.get_width() + 1, bar.get_y() + bar.get_height()/2, 
+                   f'{percentage}%', ha='left', va='center', color='white', fontfamily='Helvetica', fontweight='bold')
+        
+        plt.tight_layout()
+        st.pyplot(fig)
     
     with col2:
+        st.markdown("#### 📊 Customer Distribution by Income Segment")
+        income_dist = df_customers['income_segment'].value_counts()
+        
+        fig, ax = plt.subplots(figsize=(10, 6))
+        fig.patch.set_facecolor('#1E3A8A')
+        ax.set_facecolor('#1E3A8A')
+        
+        colors = ['#FF6B6B', '#4ECDC4', '#45B7D1']
+        wedges, texts, autotexts = ax.pie(income_dist.values, labels=income_dist.index, autopct='%1.1f%%',
+                                         colors=colors, startangle=90)
+        
+        for text in texts:
+            text.set_color('white')
+            text.set_fontfamily('Helvetica')
+        for autotext in autotexts:
+            autotext.set_color('white')
+            autotext.set_fontfamily('Helvetica')
+            autotext.set_fontweight('bold')
+        
+        st.pyplot(fig)
+        
         st.markdown("#### 📈 Campaign Performance Overview")
         campaign_perf = df_campaigns.groupby('campaign_name')['conversion_rate'].mean().sort_values(ascending=False)
         
-        # Display as metric cards
-        for campaign, rate in campaign_perf.items():
-            col1, col2 = st.columns([3, 1])
-            with col1:
-                st.write(f"**{campaign}**")
-            with col2:
-                st.metric("Rate", f"{rate*100:.1f}%")
+        fig, ax = plt.subplots(figsize=(10, 6))
+        fig.patch.set_facecolor('#1E3A8A')
+        ax.set_facecolor('#1E3A8A')
         
-        st.markdown("#### 🌍 Regional Distribution")
-        region_dist = df_customers['region'].value_counts()
-        st.dataframe(region_dist)
+        bars = ax.barh(range(len(campaign_perf)), campaign_perf.values * 100, 
+                      color=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7'])
+        ax.set_yticks(range(len(campaign_perf)))
+        ax.set_yticklabels(campaign_perf.index, color='white', fontfamily='Helvetica')
+        ax.set_xlabel('Conversion Rate (%)', color='white', fontfamily='Helvetica')
+        ax.tick_params(colors='white')
+        ax.grid(True, alpha=0.3, color='white')
+        
+        plt.tight_layout()
+        st.pyplot(fig)
 
 elif section == "🎯 Audience Generation":
-    st.markdown("### 🎯 Campaign Audience Generation")
+    st.markdown("<h2 class='section-header'>🎯 Campaign Audience Generation</h2>", unsafe_allow_html=True)
     
     col1, col2 = st.columns([1, 2])
     
     with col1:
         st.markdown("#### 🔧 Audience Criteria")
         
-        # Campaign type selection
         campaign_type = st.selectbox(
             "Select Campaign Type:",
             ["Credit Card Premium", "Personal Loan", "Mortgage", "Investment Fund", "Insurance"]
         )
         
-        # Audience filters
         st.markdown("**Audience Filters:**")
         min_balance = st.slider("Minimum Balance (€)", 0, 10000, 1000, step=500)
         max_age = st.slider("Maximum Age", 18, 70, 65)
@@ -199,7 +305,6 @@ elif section == "🎯 Audience Generation":
         min_products = st.slider("Minimum Products Held", 1, 5, 1)
         
         if st.button("🔍 Generate Audience", type="primary", use_container_width=True):
-            # Apply filters
             filtered_audience = df_customers[
                 (df_customers['total_balance'] >= min_balance) &
                 (df_customers['age'] <= max_age) &
@@ -217,7 +322,6 @@ elif section == "🎯 Audience Generation":
         if 'filtered_audience' in st.session_state and len(st.session_state.filtered_audience) > 0:
             audience = st.session_state.filtered_audience
             
-            # Audience metrics
             col1, col2, col3, col4 = st.columns(4)
             with col1:
                 st.metric("Audience Size", f"{len(audience):,}")
@@ -228,7 +332,6 @@ elif section == "🎯 Audience Generation":
             with col4:
                 st.metric("Avg Age", f"{audience['age'].mean():.1f}")
             
-            # Audience composition
             st.markdown("##### 📊 Audience Composition")
             
             tab1, tab2, tab3 = st.tabs(["Demographics", "Financial", "Raw Data"])
@@ -259,7 +362,6 @@ elif section == "🎯 Audience Generation":
             with tab3:
                 st.dataframe(audience[['customer_id', 'age', 'income_segment', 'region', 'total_balance', 'product_holdings']])
             
-            # Export option
             st.markdown("##### 📤 Export Audience")
             if st.button("Download Audience as CSV", use_container_width=True):
                 csv = audience.to_csv(index=False)
@@ -270,13 +372,10 @@ elif section == "🎯 Audience Generation":
                     mime="text/csv",
                     use_container_width=True
                 )
-        else:
-            st.info("👆 Configure your audience criteria and click 'Generate Audience' to see results")
 
 elif section == "📈 Campaign Analytics":
-    st.markdown("### 📈 Campaign Performance Analytics")
+    st.markdown("<h2 class='section-header'>📈 Campaign Performance Analytics</h2>", unsafe_allow_html=True)
     
-    # Campaign selection
     selected_campaign = st.selectbox(
         "Select Campaign for Analysis:",
         df_campaigns['campaign_name'].unique()
@@ -284,7 +383,6 @@ elif section == "📈 Campaign Analytics":
     
     campaign_data = df_campaigns[df_campaigns['campaign_name'] == selected_campaign]
     
-    # Campaign KPIs
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
@@ -303,14 +401,12 @@ elif section == "📈 Campaign Analytics":
         avg_cpa = campaign_data['cost_per_acquisition'].mean()
         st.metric("Avg CPA", f"€{avg_cpa:.0f}")
     
-    # Performance charts
     st.markdown("#### 📊 Monthly Performance Trends")
     
     col1, col2 = st.columns(2)
     
     with col1:
         st.markdown("**Conversion Rate Trend**")
-        # Create a simple line chart using st.line_chart
         conv_data = campaign_data.set_index('month')[['conversion_rate']]
         conv_data['conversion_rate'] = conv_data['conversion_rate'] * 100
         st.line_chart(conv_data)
@@ -320,7 +416,6 @@ elif section == "📈 Campaign Analytics":
         revenue_data = campaign_data.set_index('month')[['revenue_generated']]
         st.line_chart(revenue_data)
     
-    # Campaign comparison
     st.markdown("#### 📈 Cross-Campaign Comparison")
     
     comparison_metric = st.selectbox(
@@ -328,16 +423,150 @@ elif section == "📈 Campaign Analytics":
         ["conversion_rate", "revenue_generated", "cost_per_acquisition", "actual_reach"]
     )
     
-    # Aggregate data for comparison
     campaign_comparison = df_campaigns.groupby('campaign_name')[comparison_metric].mean().sort_values(ascending=False)
     st.bar_chart(campaign_comparison)
+
+elif section == "🗺️ Geographic Analysis":
+    st.markdown("<h2 class='section-header'>🗺️ Geographic Analysis</h2>", unsafe_allow_html=True)
     
-    # Detailed data table
-    st.markdown("#### 📋 Detailed Campaign Data")
-    st.dataframe(campaign_data)
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("#### 🇪🇸 Spain Regional Analysis")
+        
+        # Prepare data for Spain map
+        spanish_data = []
+        for region, info in spanish_regions.items():
+            region_customers = df_customers[df_customers['region'] == region]
+            spanish_data.append({
+                'region': region,
+                'lat': info['lat'],
+                'lon': info['lon'],
+                'customers': len(region_customers),
+                'avg_balance': region_customers['total_balance'].mean(),
+                'conversion_rate': np.random.uniform(2, 8)  # Simulated conversion rates
+            })
+        
+        df_spain = pd.DataFrame(spanish_data)
+        
+        # Spain map
+        layer = pdk.Layer(
+            "ScatterplotLayer",
+            df_spain,
+            pickable=True,
+            opacity=0.8,
+            stroked=True,
+            filled=True,
+            radius_scale=100,
+            radius_min_pixels=5,
+            radius_max_pixels=50,
+            line_width_min_pixels=1,
+            get_position=["lon", "lat"],
+            get_radius="customers",
+            get_fill_color=[255, 107, 107, 180],
+            get_line_color=[0, 0, 0],
+        )
+        
+        view_state = pdk.ViewState(
+            longitude=-3.7038,
+            latitude=40.4168,
+            zoom=5,
+            pitch=0,
+        )
+        
+        r = pdk.Deck(
+            layers=[layer],
+            initial_view_state=view_state,
+            tooltip={
+                "html": "<b>{region}</b><br>Customers: {customers}<br>Avg Balance: €{avg_balance:.0f}",
+                "style": {"color": "white"}
+            }
+        )
+        
+        st.pydeck_chart(r)
+        
+        st.markdown("#### Spanish Regions Data")
+        st.dataframe(df_spain[['region', 'customers', 'avg_balance', 'conversion_rate']])
+    
+    with col2:
+        st.markdown("#### 🇪🇺 European Market Analysis")
+        
+        # Prepare data for Europe map
+        europe_data = []
+        for country, info in european_countries.items():
+            europe_data.append({
+                'country': country,
+                'lat': info['lat'],
+                'lon': info['lon'],
+                'customers': info['customers'],
+                'conversion_rate': info['conversion']
+            })
+        
+        df_europe = pd.DataFrame(europe_data)
+        
+        # Europe map
+        layer_europe = pdk.Layer(
+            "ScatterplotLayer",
+            df_europe,
+            pickable=True,
+            opacity=0.8,
+            stroked=True,
+            filled=True,
+            radius_scale=200,
+            radius_min_pixels=8,
+            radius_max_pixels=80,
+            line_width_min_pixels=1,
+            get_position=["lon", "lat"],
+            get_radius="customers",
+            get_fill_color=[78, 205, 196, 180],
+            get_line_color=[0, 0, 0],
+        )
+        
+        view_state_europe = pdk.ViewState(
+            longitude=10.0,
+            latitude=50.0,
+            zoom=3,
+            pitch=0,
+        )
+        
+        r_europe = pdk.Deck(
+            layers=[layer_europe],
+            initial_view_state=view_state_europe,
+            tooltip={
+                "html": "<b>{country}</b><br>Customers: {customers}<br>Conversion: {conversion_rate}%",
+                "style": {"color": "white"}
+            }
+        )
+        
+        st.pydeck_chart(r_europe)
+        
+        st.markdown("#### European Markets Data")
+        st.dataframe(df_europe[['country', 'customers', 'conversion_rate']])
+        
+        # Funnel chart for European markets
+        st.markdown("#### 📊 European Conversion Funnel")
+        fig, ax = plt.subplots(figsize=(10, 6))
+        fig.patch.set_facecolor('#1E3A8A')
+        ax.set_facecolor('#1E3A8A')
+        
+        countries = df_europe['country']
+        conversions = df_europe['conversion_rate']
+        
+        bars = ax.bar(countries, conversions, color=['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD'])
+        ax.set_ylabel('Conversion Rate (%)', color='white', fontfamily='Helvetica')
+        ax.set_xlabel('Country', color='white', fontfamily='Helvetica')
+        ax.tick_params(colors='white', rotation=45)
+        ax.grid(True, alpha=0.3, color='white')
+        
+        for bar, conversion in zip(bars, conversions):
+            ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.1, 
+                   f'{conversion}%', ha='center', va='bottom', color='white', fontfamily='Helvetica')
+        
+        plt.tight_layout()
+        st.pyplot(fig)
 
 elif section == "🚀 Campaign Execution":
-    st.markdown("### 🚀 Campaign Programming & Execution")
+    st.markdown("<h2 class='section-header'>🚀 Campaign Programming & Execution</h2>", unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
     
@@ -370,7 +599,6 @@ elif section == "🚀 Campaign Execution":
             st.success(f"✅ Campaign '{campaign_name}' scheduled for {execution_date}")
             st.balloons()
             
-            # Show next steps
             st.markdown("**Next Steps:**")
             st.write("1. ✅ Campaign scheduled in system")
             st.write("2. 📧 Communications team notified")
@@ -380,7 +608,6 @@ elif section == "🚀 Campaign Execution":
     with col2:
         st.markdown("#### 📊 Execution Dashboard")
         
-        # Mock execution metrics
         st.markdown("**Campaign Pipeline**")
         
         col1, col2, col3, col4 = st.columns(4)
@@ -395,7 +622,6 @@ elif section == "🚀 Campaign Execution":
         
         st.markdown("**Recent Campaign Executions**")
         
-        # Campaign execution history
         execution_history = [
             {"Campaign": "Credit Card Q4", "Status": "✅ Completed", "Date": "2024-01-15", "Reach": "15,234", "Conv Rate": "4.2%"},
             {"Campaign": "Personal Loan Promo", "Status": "🔄 In Progress", "Date": "2024-01-14", "Reach": "8,567", "Conv Rate": "3.8%"},
@@ -415,11 +641,25 @@ elif section == "🚀 Campaign Execution":
                     st.write(f"Reach: {campaign['Reach']} | Conv: {campaign['Conv Rate']}")
                 st.divider()
 
+# PySpark Integration Section
+st.sidebar.markdown("---")
+st.sidebar.markdown("<h3 style='color: white; font-family: Helvetica;'>⚡ PySpark Integration</h3>", unsafe_allow_html=True)
+
+if st.sidebar.button("Simulate PySpark Processing"):
+    with st.sidebar.expander("PySpark Results"):
+        st.write("**Data Processing with PySpark:**")
+        st.write("✅ Customer data loaded")
+        st.write("✅ Audience segmentation completed")
+        st.write("✅ Campaign analytics processed")
+        st.write("✅ Geographic analysis generated")
+        st.write(f"📊 Total records: {len(df_customers):,}")
+        st.write(f"🎯 Eligible for campaigns: {len(df_customers[df_customers['campaign_eligible']]):,}")
+
 # Footer
 st.markdown("---")
 st.markdown(
-    "<p style='text-align: center; color: #000080;'>"
-    "Built with Streamlit for Accenture Banking Analytics | "
+    "<p style='text-align: center; color: white; font-family: Helvetica;'>"
+    "Built with Streamlit & PySpark for Accenture Banking Analytics | "
     "Generación de Audiencias & Programación de Campañas"
     "</p>", 
     unsafe_allow_html=True
