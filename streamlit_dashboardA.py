@@ -74,6 +74,25 @@ st.markdown("""
         border-radius: 10px;
         margin: 10px 0;
     }
+    .wide-map {
+        height: 500px;
+        border-radius: 10px;
+        margin: 10px 0;
+    }
+    .dataframe-wide {
+        width: 100%;
+    }
+    .kpi-row {
+        margin-bottom: 1rem;
+    }
+    /* Make tables wider */
+    .stDataFrame {
+        width: 100%;
+    }
+    /* Adjust map container */
+    .stDeckGlJsonChart {
+        border-radius: 10px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -292,7 +311,8 @@ st.markdown("<p style='color: white; font-size: 1.2rem; font-family: Helvetica;'
 if section == "🏠 Dashboard Overview":
     st.markdown("<h2 class='section-header'>📈 Executive Summary</h2>", unsafe_allow_html=True)
     
-    # KPI Metrics
+    # KPI Metrics - Wider layout
+    st.markdown('<div class="kpi-row">', unsafe_allow_html=True)
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
@@ -327,26 +347,18 @@ if section == "🏠 Dashboard Overview":
             value=f"{avg_conversion:.1f}%",
             delta="+2.1%"
         )
+    st.markdown('</div>', unsafe_allow_html=True)
     
-    # Charts and Data Table
-    col1, col2 = st.columns(2)
+    # Charts and Data Table - Better layout
+    col1, col2 = st.columns([1, 1])
     
     with col1:
         st.markdown("#### 📊 Customer Data Table")
-        st.dataframe(df_customers[['customer_id', 'age', 'income_segment', 'region', 'total_balance', 'product_holdings']].head(10))
+        st.dataframe(df_customers[['customer_id', 'age', 'income_segment', 'region', 'total_balance', 'product_holdings']].head(10), use_container_width=True)
         
         # Use the new funnel display function
         display_funnel_chart(df_funnel)
         
-        st.markdown("#### 💰 Financial Performance")
-        
-        # Revenue trend
-        st.markdown("**Monthly Revenue Trend**")
-        revenue_data = df_financial[['month', 'revenue']].copy()
-        revenue_data['month'] = revenue_data['month'].astype(str)
-        revenue_chart_data = revenue_data.set_index('month')['revenue']
-        st.line_chart(revenue_chart_data)
-    
     with col2:
         # Use the new income distribution function
         display_income_distribution(df_customers)
@@ -354,15 +366,27 @@ if section == "🏠 Dashboard Overview":
         # Use the new campaign performance function
         display_campaign_performance(df_campaigns)
         
-        st.markdown("#### 📊 Assets Under Management")
-        aum_data = df_financial[['month', 'aum']].copy()
-        aum_data['month'] = aum_data['month'].astype(str)
-        aum_chart_data = aum_data.set_index('month')['aum']
-        st.area_chart(aum_chart_data)
+        st.markdown("#### 💰 Financial Performance")
+        
+        # Revenue and AUM in tabs
+        tab1, tab2 = st.tabs(["Revenue Trend", "AUM Trend"])
+        
+        with tab1:
+            revenue_data = df_financial[['month', 'revenue']].copy()
+            revenue_data['month'] = revenue_data['month'].astype(str)
+            revenue_chart_data = revenue_data.set_index('month')['revenue']
+            st.line_chart(revenue_chart_data)
+            
+        with tab2:
+            aum_data = df_financial[['month', 'aum']].copy()
+            aum_data['month'] = aum_data['month'].astype(str)
+            aum_chart_data = aum_data.set_index('month')['aum']
+            st.area_chart(aum_chart_data)
 
 elif section == "🎯 Audience Generation":
     st.markdown("<h2 class='section-header'>🎯 Campaign Audience Generation</h2>", unsafe_allow_html=True)
     
+    # Use wider layout
     col1, col2 = st.columns([1, 2])
     
     with col1:
@@ -408,6 +432,7 @@ elif section == "🎯 Audience Generation":
         if 'filtered_audience' in st.session_state and len(st.session_state.filtered_audience) > 0:
             audience = st.session_state.filtered_audience
             
+            # KPIs in a row
             col1, col2, col3, col4 = st.columns(4)
             with col1:
                 st.metric("Audience Size", f"{len(audience):,}")
@@ -449,7 +474,7 @@ elif section == "🎯 Audience Generation":
                     st.bar_chart(product_counts)
             
             with tab3:
-                st.dataframe(audience[['customer_id', 'age', 'income_segment', 'region', 'total_balance', 'product_holdings']].head(15))
+                st.dataframe(audience[['customer_id', 'age', 'income_segment', 'region', 'total_balance', 'product_holdings']].head(15), use_container_width=True)
             
             st.markdown("##### 📤 Export Audience")
             if st.button("Download Audience as CSV", use_container_width=True):
@@ -474,6 +499,7 @@ elif section == "📈 Campaign Analytics":
     
     campaign_data = df_campaigns[df_campaigns['campaign_name'] == selected_campaign]
     
+    # KPIs in a row
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
@@ -524,6 +550,7 @@ elif section == "📈 Campaign Analytics":
 elif section == "🗺️ Geographic Analysis":
     st.markdown("<h2 class='section-header'>🗺️ Geographic Analysis</h2>", unsafe_allow_html=True)
     
+    # Use full width for maps
     col1, col2 = st.columns(2)
     
     with col1:
@@ -544,7 +571,8 @@ elif section == "🗺️ Geographic Analysis":
         
         df_spain = pd.DataFrame(spanish_data)
         
-        # Spain map
+        # Spain map with better sizing
+        st.markdown('<div class="wide-map">', unsafe_allow_html=True)
         layer = pdk.Layer(
             "ScatterplotLayer",
             df_spain,
@@ -553,8 +581,8 @@ elif section == "🗺️ Geographic Analysis":
             stroked=True,
             filled=True,
             radius_scale=100,
-            radius_min_pixels=5,
-            radius_max_pixels=50,
+            radius_min_pixels=8,
+            radius_max_pixels=60,
             line_width_min_pixels=1,
             get_position=["lon", "lat"],
             get_radius="customers",
@@ -575,31 +603,16 @@ elif section == "🗺️ Geographic Analysis":
             tooltip={
                 "html": "<b>{region}</b><br>Customers: {customers}<br>Avg Balance: €{avg_balance:.0f}<br>Conversion: {conversion_rate}%",
                 "style": {"color": "white"}
-            }
+            },
+            height=400
         )
         
         st.pydeck_chart(r)
+        st.markdown('</div>', unsafe_allow_html=True)
         
         # Display Spain regions using the fixed function
         display_geographic_data(spanish_regions, "Spanish Regions Performance")
         
-        # Additional Spain metrics
-        st.markdown("#### 📊 Spain Performance Summary")
-        total_spain_customers = sum(region['customers'] for region in spanish_regions.values())
-        avg_spain_conversion = np.mean([region['conversion'] for region in spanish_regions.values()])
-        total_spain_revenue = sum(region['revenue'] for region in spanish_regions.values())
-        total_spain_aum = sum(region['aum'] for region in spanish_regions.values())
-        
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Total Customers", f"{total_spain_customers:,}")
-        with col2:
-            st.metric("Avg Conversion", f"{avg_spain_conversion:.1f}%")
-        with col3:
-            st.metric("Total Revenue", f"€{total_spain_revenue:,}")
-        with col4:
-            st.metric("Total AUM", f"€{total_spain_aum:,}")
-    
     with col2:
         st.markdown("#### 🇪🇺 European Market Analysis")
         
@@ -616,7 +629,8 @@ elif section == "🗺️ Geographic Analysis":
         
         df_europe = pd.DataFrame(europe_data)
         
-        # Europe map
+        # Europe map with better sizing
+        st.markdown('<div class="wide-map">', unsafe_allow_html=True)
         layer_europe = pdk.Layer(
             "ScatterplotLayer",
             df_europe,
@@ -625,8 +639,8 @@ elif section == "🗺️ Geographic Analysis":
             stroked=True,
             filled=True,
             radius_scale=200,
-            radius_min_pixels=8,
-            radius_max_pixels=80,
+            radius_min_pixels=10,
+            radius_max_pixels=100,
             line_width_min_pixels=1,
             get_position=["lon", "lat"],
             get_radius="customers",
@@ -647,15 +661,40 @@ elif section == "🗺️ Geographic Analysis":
             tooltip={
                 "html": "<b>{country}</b><br>Customers: {customers}<br>Conversion: {conversion_rate}%",
                 "style": {"color": "white"}
-            }
+            },
+            height=400
         )
         
         st.pydeck_chart(r_europe)
+        st.markdown('</div>', unsafe_allow_html=True)
         
         # Display European countries using the fixed function
         display_geographic_data(european_countries, "European Markets Performance")
+    
+    # Performance summaries below maps - full width
+    st.markdown("---")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Spain Performance Summary
+        st.markdown("#### 📊 Spain Performance Summary")
+        total_spain_customers = sum(region['customers'] for region in spanish_regions.values())
+        avg_spain_conversion = np.mean([region['conversion'] for region in spanish_regions.values()])
+        total_spain_revenue = sum(region['revenue'] for region in spanish_regions.values())
+        total_spain_aum = sum(region['aum'] for region in spanish_regions.values())
         
-        # Additional Europe metrics
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Customers", f"{total_spain_customers:,}")
+        with col2:
+            st.metric("Avg Conversion", f"{avg_spain_conversion:.1f}%")
+        with col3:
+            st.metric("Total Revenue", f"€{total_spain_revenue:,}")
+        with col4:
+            st.metric("Total AUM", f"€{total_spain_aum:,}")
+    
+    with col2:
+        # Europe Performance Summary
         st.markdown("#### 📊 Europe Performance Summary")
         total_europe_customers = sum(country['customers'] for country in european_countries.values())
         avg_europe_conversion = np.mean([country['conversion'] for country in european_countries.values()])
