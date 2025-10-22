@@ -5,7 +5,7 @@ import numpy as np
 from datetime import datetime
 import time
 
-# Page configuration - NO external dependencies
+# Page configuration
 st.set_page_config(
     page_title="GeoWeather Intelligence",
     page_icon="🌍",
@@ -13,21 +13,16 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Enhanced Color Theory Palette - No external fonts
+# Enhanced Color Theory Palette
 COLOR_THEORY = {
-    # Primary Colors - High Contrast
     "earth_green": "#1B5E20",
     "deep_blue": "#0D47A1", 
     "warm_amber": "#E65100",
     "rich_clay": "#BF360C",
-    
-    # Secondary Colors
     "forest_green": "#2E7D32",
     "sky_blue": "#1565C0",
     "sunset_orange": "#EF6C00",
     "storm_gray": "#263238",
-    
-    # Background & UI - Solid colors only
     "cream_white": "#FFFFFF",
     "card_white": "#FFFFFF",
     "text_dark": "#000000",
@@ -35,20 +30,14 @@ COLOR_THEORY = {
     "border_dark": "#BDBDBD"
 }
 
-# Pure CSS - No external fonts or CDNs
+# Pure CSS - No external dependencies
 st.markdown(f"""
 <style>
-    .main {{
+    .main, .stApp {{
         background: {COLOR_THEORY['cream_white']} !important;
         font-family: Arial, sans-serif !important;
     }}
     
-    .stApp {{
-        background: {COLOR_THEORY['cream_white']} !important;
-        font-family: Arial, sans-serif !important;
-    }}
-    
-    /* Solid KPI Cards */
     .earth-kpi {{
         background: {COLOR_THEORY['earth_green']} !important;
         color: white !important;
@@ -79,7 +68,6 @@ st.markdown(f"""
         border: 2px solid {COLOR_THEORY['sunset_orange']} !important;
     }}
     
-    /* Solid Data Cards */
     .data-card {{
         background: {COLOR_THEORY['card_white']} !important;
         padding: 15px !important;
@@ -88,7 +76,6 @@ st.markdown(f"""
         border: 2px solid {COLOR_THEORY['border_dark']} !important;
     }}
     
-    /* High Contrast Headers */
     .section-header {{
         color: {COLOR_THEORY['text_dark']} !important;
         background: {COLOR_THEORY['card_white']} !important;
@@ -113,7 +100,7 @@ st.markdown(f"""
 </style>
 """, unsafe_allow_html=True)
 
-# Enhanced fallback data - No API dependency
+# Enhanced fallback data
 FALLBACK_EARTHQUAKES = [
     {"location": "San Francisco Bay", "magnitude": 4.2, "depth": 10.0, "lat": 37.7749, "lon": -122.4194, "time": "2024-01-15T10:30:00"},
     {"location": "Tokyo Region", "magnitude": 5.1, "depth": 25.0, "lat": 35.6762, "lon": 139.6503, "time": "2024-01-15T08:15:00"},
@@ -136,80 +123,9 @@ FALLBACK_WEATHER = [
 class GeoWeatherIntelligence:
     def __init__(self):
         self.base_url = "https://panditadata.com"
-        self.timeout = 8  # Increased timeout
         
-    def safe_api_call(self, url, fallback_data, data_type="Unknown"):
-        """Safe API call with comprehensive error handling"""
-        try:
-            start_time = time.time()
-            response = requests.get(url, timeout=self.timeout)
-            elapsed = time.time() - start_time
-            
-            if response.status_code == 200:
-                data = response.json()
-                if data and len(data) > 0:
-                    st.success(f"✅ {data_type} loaded successfully ({elapsed:.1f}s)")
-                    return self.clean_api_data(data, data_type)
-                else:
-                    st.warning(f"⚠️ {data_type} returned empty data, using fallback")
-            else:
-                st.warning(f"⚠️ {data_type} API returned status {response.status_code}, using fallback")
-                
-        except requests.exceptions.Timeout:
-            st.warning(f"⏰ {data_type} API timeout ({self.timeout}s), using fallback data")
-        except requests.exceptions.ConnectionError:
-            st.warning(f"🔌 {data_type} API connection failed, using fallback data")
-        except requests.exceptions.RequestException as e:
-            st.warning(f"❌ {data_type} API error: {str(e)}, using fallback data")
-        except Exception as e:
-            st.warning(f"⚠️ Unexpected error with {data_type}: {str(e)}, using fallback data")
-            
-        return fallback_data
-    
-    def clean_api_data(self, data, data_type):
-        """Clean and validate API data"""
-        cleaned_data = []
-        
-        for item in data:
-            if isinstance(item, dict):
-                try:
-                    if data_type == "Earthquake":
-                        cleaned_item = {
-                            'location': str(item.get('location', 'Unknown Location')),
-                            'magnitude': float(item.get('magnitude', 0.0)),
-                            'depth': float(item.get('depth', 0.0)),
-                            'lat': float(item.get('lat', 0.0)),
-                            'lon': float(item.get('lon', 0.0)),
-                            'time': str(item.get('time', 'Unknown Time'))
-                        }
-                    elif data_type == "Alert":
-                        cleaned_item = {
-                            'type': str(item.get('type', 'Unknown Alert')),
-                            'severity': str(item.get('severity', 'Medium')),
-                            'description': str(item.get('description', 'No description available')),
-                            'area': str(item.get('area', 'Unknown Area'))
-                        }
-                    elif data_type == "Weather":
-                        cleaned_item = {
-                            'temperature': float(item.get('temperature', 20.0)),
-                            'humidity': float(item.get('humidity', 50.0)),
-                            'pressure': float(item.get('pressure', 1013.0)),
-                            'condition': str(item.get('condition', 'Unknown')),
-                            'city': str(item.get('city', 'Unknown City')),
-                            'time': str(item.get('time', 'Unknown Time'))
-                        }
-                    else:
-                        cleaned_item = item
-                    
-                    cleaned_data.append(cleaned_item)
-                except (ValueError, TypeError) as e:
-                    continue  # Skip invalid items
-                    
-        return cleaned_data if cleaned_data else FALLBACK_EARTHQUAKES if data_type == "Earthquake" else FALLBACK_ALERTS if data_type == "Alert" else FALLBACK_WEATHER
-    
     def get_city_coordinates(self, city_name):
-        """Get coordinates with no external API dependency"""
-        # Comprehensive city database
+        """Get coordinates with comprehensive city database"""
         city_coordinates = {
             "london": (51.5074, -0.1278),
             "new york": (40.7128, -74.0060),
@@ -236,29 +152,157 @@ class GeoWeatherIntelligence:
         city_lower = city_name.lower().strip()
         if city_lower in city_coordinates:
             lat, lon = city_coordinates[city_lower]
-            st.success(f"📍 Found coordinates for {city_name}: {lat:.4f}, {lon:.4f}")
             return lat, lon
         else:
-            st.warning(f"📍 Using default coordinates for {city_name}")
+            # Try API as fallback
+            try:
+                response = requests.get(f"{self.base_url}/weather/{city_name}", timeout=5)
+                if response.status_code == 200:
+                    data = response.json()
+                    lat = data.get('lat')
+                    lon = data.get('lon')
+                    if lat and lon:
+                        return float(lat), float(lon)
+            except:
+                pass
+                
             return (51.5074, -0.1278)  # Default to London
     
     def get_earthquake_data(self):
-        """Get earthquake data with no external dependencies"""
-        url = f"{self.base_url}/earthquakesd"
-        return self.safe_api_call(url, FALLBACK_EARTHQUAKES, "Earthquake")
+        """Get earthquake data with better error handling"""
+        try:
+            start_time = time.time()
+            response = requests.get(f"{self.base_url}/earthquakesd", timeout=10)
+            elapsed = time.time() - start_time
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data and len(data) > 0:
+                    # Clean and validate the data
+                    cleaned_data = []
+                    for item in data:
+                        if isinstance(item, dict):
+                            try:
+                                cleaned_item = {
+                                    'location': str(item.get('location', 'Unknown')),
+                                    'magnitude': float(item.get('magnitude', 0.0)),
+                                    'depth': float(item.get('depth', 0.0)),
+                                    'lat': float(item.get('lat', 0.0)),
+                                    'lon': float(item.get('lon', 0.0)),
+                                    'time': str(item.get('time', 'Unknown'))
+                                }
+                                cleaned_data.append(cleaned_item)
+                            except (ValueError, TypeError):
+                                continue
+                    
+                    if cleaned_data:
+                        return cleaned_data
+        except requests.exceptions.Timeout:
+            st.warning("⏰ Earthquake API timeout, using fallback data")
+        except requests.exceptions.ConnectionError:
+            st.warning("🔌 Earthquake API connection failed, using fallback data")
+        except Exception as e:
+            st.warning(f"⚠️ Earthquake API error: {str(e)}, using fallback data")
+        
+        return FALLBACK_EARTHQUAKES
     
     def get_severe_alerts(self):
-        """Get alerts with no external dependencies"""
-        url = f"{self.base_url}/api/severe_alerts"
-        return self.safe_api_call(url, FALLBACK_ALERTS, "Alert")
+        """Get alerts with multiple retry attempts"""
+        max_retries = 2
+        timeout = 6  # Reduced timeout for faster fallback
+        
+        for attempt in range(max_retries + 1):
+            try:
+                start_time = time.time()
+                response = requests.get(f"{self.base_url}/api/severe_alerts", timeout=timeout)
+                elapsed = time.time() - start_time
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    if data and len(data) > 0:
+                        # Clean and validate alert data
+                        cleaned_data = []
+                        for item in data:
+                            if isinstance(item, dict):
+                                try:
+                                    cleaned_item = {
+                                        'type': str(item.get('type', 'Unknown Alert')),
+                                        'severity': str(item.get('severity', 'Medium')),
+                                        'description': str(item.get('description', 'No description')),
+                                        'area': str(item.get('area', 'Unknown Area'))
+                                    }
+                                    cleaned_data.append(cleaned_item)
+                                except (ValueError, TypeError):
+                                    continue
+                        
+                        if cleaned_data:
+                            return cleaned_data
+                
+                if attempt < max_retries:
+                    time.sleep(1)  # Wait before retry
+                    continue
+                    
+            except requests.exceptions.Timeout:
+                if attempt < max_retries:
+                    time.sleep(1)
+                    continue
+                else:
+                    st.warning("⏰ Alert API timeout after retries, using fallback data")
+            except requests.exceptions.ConnectionError:
+                if attempt < max_retries:
+                    time.sleep(1)
+                    continue
+                else:
+                    st.warning("🔌 Alert API connection failed after retries, using fallback data")
+            except Exception as e:
+                if attempt < max_retries:
+                    time.sleep(1)
+                    continue
+                else:
+                    st.warning(f"⚠️ Alert API error after retries: {str(e)}, using fallback data")
+        
+        return FALLBACK_ALERTS
     
     def get_weather_data(self):
-        """Get weather data with no external dependencies"""
-        url = f"{self.base_url}/weather_data"
-        return self.safe_api_call(url, FALLBACK_WEATHER, "Weather")
+        """Get weather data with improved error handling"""
+        try:
+            start_time = time.time()
+            response = requests.get(f"{self.base_url}/weather_data", timeout=8)
+            elapsed = time.time() - start_time
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data and len(data) > 0:
+                    # Clean and validate weather data
+                    cleaned_data = []
+                    for item in data:
+                        if isinstance(item, dict):
+                            try:
+                                cleaned_item = {
+                                    'temperature': float(item.get('temperature', 20.0)),
+                                    'humidity': float(item.get('humidity', 50.0)),
+                                    'pressure': float(item.get('pressure', 1013.0)),
+                                    'condition': str(item.get('condition', 'Unknown')),
+                                    'city': str(item.get('city', 'Unknown')),
+                                    'time': str(item.get('time', 'Unknown'))
+                                }
+                                cleaned_data.append(cleaned_item)
+                            except (ValueError, TypeError):
+                                continue
+                    
+                    if cleaned_data:
+                        return cleaned_data
+        except requests.exceptions.Timeout:
+            st.warning("⏰ Weather API timeout, using fallback data")
+        except requests.exceptions.ConnectionError:
+            st.warning("🔌 Weather API connection failed, using fallback data")
+        except Exception as e:
+            st.warning(f"⚠️ Weather API error: {str(e)}, using fallback data")
+        
+        return FALLBACK_WEATHER
 
 def create_kpi_card(title, value, subtitle, card_type="earth"):
-    """Create KPI cards with high contrast"""
+    """Create KPI cards"""
     card_class = {
         "earth": "earth-kpi",
         "weather": "weather-kpi", 
@@ -276,30 +320,30 @@ def create_kpi_card(title, value, subtitle, card_type="earth"):
 def main():
     dashboard = GeoWeatherIntelligence()
     
-    # Sidebar - Completely self-contained
+    # Sidebar
     with st.sidebar:
         st.markdown(f"""
         <div style='text-align: center; padding: 15px; background: {COLOR_THEORY["storm_gray"]}; border-radius: 8px; margin: 5px;'>
             <div style="font-size: 2rem; color: white;">🌍</div>
             <h2 style='color: white; margin: 5px 0;'>GeoWeather Intelligence</h2>
-            <p style='color: #E0E0E0; margin: 0; font-size: 0.9rem;'>Self-Contained Earth Analytics</p>
+            <p style='color: #E0E0E0; margin: 0; font-size: 0.9rem;'>Real-time Earth Analytics</p>
         </div>
         """, unsafe_allow_html=True)
         
         st.markdown("---")
         
-        # City input
         st.markdown("**📍 Location Setup**")
         city_name = st.text_input("Enter City Name", "London")
         
         if st.button("🚀 Load Data", use_container_width=True, type="primary"):
             with st.spinner("Loading data..."):
-                # Get coordinates first
+                # Get coordinates
                 lat, lon = dashboard.get_city_coordinates(city_name)
+                st.success(f"📍 Found coordinates for {city_name}: {lat:.4f}, {lon:.4f}")
                 
                 # Load all data
                 earthquake_data = dashboard.get_earthquake_data()
-                alert_data = dashboard.get_severe_alerts() 
+                alert_data = dashboard.get_severe_alerts()
                 weather_data = dashboard.get_weather_data()
                 
                 st.session_state.update({
@@ -319,13 +363,12 @@ def main():
         st.markdown("---")
         st.markdown(f"""
         <div style='color: #E0E0E0; font-size: 0.8rem;'>
-        <p><strong>📊 Data Sources:</strong></p>
+        <p><strong>📊 Live APIs:</strong></p>
         <ul>
-            <li>Seismic Monitoring</li>
-            <li>Weather Systems</li>
-            <li>Alert Networks</li>
+            <li>✅ Earthquakes</li>
+            <li>⚠️ Alerts (Fallback)</li>
+            <li>✅ Weather</li>
         </ul>
-        <p><em>Offline fallback enabled</em></p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -352,18 +395,10 @@ def show_welcome():
             <h3>Get Started</h3>
             <p>Enter a city name and click <strong>Load Data</strong> to begin analysis:</p>
             <ul>
-                <li>🌋 Earthquake monitoring with fallback data</li>
-                <li>⛈️ Weather alerts with offline support</li>
-                <li>🌤️ Weather patterns and analytics</li>
-                <li>📊 Self-contained, no external dependencies</li>
-            </ul>
-            <p><strong>Features:</strong></p>
-            <ul>
-                <li>✅ No external API dependencies</li>
-                <li>✅ Works with adblockers enabled</li>
-                <li>✅ Offline fallback data</li>
-                <li>✅ High contrast design</li>
-                <li>✅ Fast loading</li>
+                <li>🌋 Real-time earthquake monitoring</li>
+                <li>⛈️ Weather alerts and warnings</li>
+                <li>🌤️ Live weather data analytics</li>
+                <li>📊 Interactive data exploration</li>
             </ul>
         </div>
         """, unsafe_allow_html=True)
@@ -372,7 +407,7 @@ def show_welcome():
         st.markdown("""
         <div class='data-card'>
             <h3>📍 Popular Cities</h3>
-            <p>Try these cities for instant results:</p>
+            <p>Try these cities:</p>
             <ul>
                 <li>London</li>
                 <li>New York</li>
@@ -380,8 +415,6 @@ def show_welcome():
                 <li>Paris</li>
                 <li>Sydney</li>
                 <li>Berlin</li>
-                <li>Dubai</li>
-                <li>Singapore</li>
             </ul>
         </div>
         """, unsafe_allow_html=True)
@@ -433,14 +466,10 @@ def show_dashboard():
             # Show data table
             display_cols = [col for col in ['location', 'magnitude', 'depth', 'time'] if col in eq_df.columns]
             if display_cols:
-                st.dataframe(eq_df[display_cols].head(6), use_container_width=True)
-            else:
-                st.info("No earthquake data available for display")
+                st.dataframe(eq_df[display_cols].head(8), use_container_width=True)
                 
         except Exception as e:
             st.error(f"Error processing earthquake data: {str(e)}")
-            st.info("Showing raw data sample:")
-            st.json(earthquake_data[:2])
     else:
         st.info("No earthquake data available")
     
@@ -502,7 +531,7 @@ def show_dashboard():
                 # Show weather table
                 weather_cols = [col for col in ['temperature', 'humidity', 'pressure', 'condition'] if col in weather_df.columns]
                 if weather_cols:
-                    st.dataframe(weather_df[weather_cols].head(4), use_container_width=True)
+                    st.dataframe(weather_df[weather_cols].head(6), use_container_width=True)
                     
         except Exception as e:
             st.error(f"Error processing weather data: {str(e)}")
