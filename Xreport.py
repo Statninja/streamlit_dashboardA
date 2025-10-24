@@ -1,4 +1,5 @@
 import streamlit as st
+import re
 import requests
 import pandas as pd
 import numpy as np
@@ -14,6 +15,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib import colors
 import base64
+import time
 
 # Page configuration - MUST be first Streamlit command
 st.set_page_config(
@@ -61,6 +63,9 @@ st.markdown("""
         border-radius: 10px;
         border: 1px solid #333;
         margin: 5px 0;
+    }
+    .stDataFrame {
+        background-color: #1e1e1e;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -307,6 +312,61 @@ def create_pdf_report(location_data, earthquake_data, weather_data, space_weathe
     buffer.seek(0)
     return buffer
 
+def create_magnitude_chart(df):
+    """Create magnitude distribution using Streamlit native chart"""
+    if df.empty:
+        return
+    
+    # Magnitude distribution
+    mag_bins = [2.5, 3.0, 4.0, 5.0, 6.0, 7.0, 10.0]
+    mag_labels = ['2.5-3.0', '3.0-4.0', '4.0-5.0', '5.0-6.0', '6.0-7.0', '7.0+']
+    
+    df['mag_bin'] = pd.cut(df['magnitude'], bins=mag_bins, labels=mag_labels, right=False)
+    mag_counts = df['mag_bin'].value_counts().sort_index()
+    
+    chart_data = pd.DataFrame({
+        'Magnitude Range': mag_counts.index,
+        'Count': mag_counts.values
+    })
+    
+    st.subheader("📊 Magnitude Distribution")
+    st.bar_chart(chart_data.set_index('Magnitude Range'))
+
+def create_time_series_chart(df):
+    """Create time series chart of earthquakes using Streamlit"""
+    if df.empty:
+        return
+    
+    # Group by day
+    df_daily = df.copy()
+    df_daily['date'] = df_daily['time'].dt.date
+    daily_counts = df_daily.groupby('date').size().reset_index(name='count')
+    daily_counts = daily_counts.sort_values('date')
+    
+    st.subheader("📈 Daily Earthquake Frequency")
+    st.line_chart(daily_counts.set_index('date'))
+
+def create_depth_chart(df):
+    """Create depth distribution chart"""
+    if df.empty:
+        return
+    
+    st.subheader("🌋 Earthquake Depth Distribution")
+    
+    # Create depth bins
+    depth_bins = [0, 10, 30, 70, 150, 300, 700]
+    depth_labels = ['0-10km', '10-30km', '30-70km', '70-150km', '150-300km', '300km+']
+    
+    df['depth_bin'] = pd.cut(df['depth_km'], bins=depth_bins, labels=depth_labels, right=False)
+    depth_counts = df['depth_bin'].value_counts().sort_index()
+    
+    depth_data = pd.DataFrame({
+        'Depth Range': depth_counts.index,
+        'Count': depth_counts.values
+    })
+    
+    st.bar_chart(depth_data.set_index('Depth Range'))
+
 # ============================================================================
 # STREAMLIT UI
 # ============================================================================
@@ -427,6 +487,17 @@ def main():
                                 Time: {eq['time'].strftime('%Y-%m-%d %H:%M UTC')}
                             </div>
                             """, unsafe_allow_html=True)
+                    
+                    # Charts using Streamlit native functions
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        create_magnitude_chart(df_earthquakes)
+                    
+                    with col2:
+                        create_time_series_chart(df_earthquakes)
+                    
+                    create_depth_chart(df_earthquakes)
                     
                     # Map
                     st.subheader("Interactive Earthquake Map")
