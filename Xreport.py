@@ -1,21 +1,17 @@
 import streamlit as st
-import re
 import requests
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-from geopy.distance import geodesic
-from geopy.geocoders import Nominatim
 import folium
 from streamlit_folium import folium_static
 import io
 from reportlab.lib.pagesizes import letter, A4
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib import colors
-import base64
-import time
+import math
 
 # Page configuration - MUST be first Streamlit command
 st.set_page_config(
@@ -64,31 +60,28 @@ st.markdown("""
         border: 1px solid #333;
         margin: 5px 0;
     }
-    .stDataFrame {
-        background-color: #1e1e1e;
-    }
 </style>
 """, unsafe_allow_html=True)
 
 # ============================================================================
-# CORE FUNCTIONS
+# CORE FUNCTIONS (Geopy-free version)
 # ============================================================================
 
-def geocode_location(query):
-    """Convert location query to coordinates"""
-    try:
-        geolocator = Nominatim(user_agent="panditadata_disaster_v1")
-        location = geolocator.geocode(query, exactly_one=True, timeout=10)
-        if location:
-            return {
-                'latitude': location.latitude,
-                'longitude': location.longitude,
-                'address': location.address,
-                'success': True
-            }
-    except Exception as e:
-        st.error(f"Geocoding error: {e}")
-    return {'success': False}
+def calculate_distance(lat1, lon1, lat2, lon2):
+    """Calculate distance between two coordinates using Haversine formula"""
+    R = 6371  # Earth radius in kilometers
+    
+    lat1_rad = math.radians(lat1)
+    lat2_rad = math.radians(lat2)
+    delta_lat = math.radians(lat2 - lat1)
+    delta_lon = math.radians(lon2 - lon1)
+    
+    a = (math.sin(delta_lat/2) * math.sin(delta_lat/2) + 
+         math.cos(lat1_rad) * math.cos(lat2_rad) * 
+         math.sin(delta_lon/2) * math.sin(delta_lon/2))
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+    
+    return R * c
 
 def fetch_earthquakes(lat, lon, radius_km=500, days=30, min_mag=2.5):
     """Fetch earthquake data from USGS API"""
@@ -125,10 +118,8 @@ def process_earthquake_data(geojson, user_lat, user_lon):
         props = feature['properties']
         coords = feature['geometry']['coordinates']
         
-        # Calculate distance from user
-        eq_location = (coords[1], coords[0])
-        user_location = (user_lat, user_lon)
-        distance_km = geodesic(user_location, eq_location).kilometers
+        # Calculate distance from user using Haversine
+        distance_km = calculate_distance(user_lat, user_lon, coords[1], coords[0])
         
         earthquake = {
             'id': feature['id'],
@@ -367,6 +358,20 @@ def create_depth_chart(df):
     
     st.bar_chart(depth_data.set_index('Depth Range'))
 
+# Predefined major cities for easy selection
+MAJOR_CITIES = {
+    "San Francisco, CA": (37.7749, -122.4194),
+    "New York, NY": (40.7128, -74.0060),
+    "Los Angeles, CA": (34.0522, -118.2437),
+    "Chicago, IL": (41.8781, -87.6298),
+    "Houston, TX": (29.7604, -95.3698),
+    "Miami, FL": (25.7617, -80.1918),
+    "Seattle, WA": (47.6062, -122.3321),
+    "Tokyo, Japan": (35.6762, 139.6503),
+    "London, UK": (51.5074, -0.1278),
+    "Sydney, Australia": (-33.8688, 151.2093)
+}
+
 # ============================================================================
 # STREAMLIT UI
 # ============================================================================
@@ -378,20 +383,22 @@ def main():
     # Sidebar
     with st.sidebar:
         st.markdown("### 🌍 Location Setup")
-        input_method = st.radio("Input Method:", ["City/Address", "Coordinates"])
+        input_method = st.radio("Input Method:", ["Select City", "Enter Coordinates"])
         
         location_data = None
         
-        if input_method == "City/Address":
-            location_query = st.text_input("Enter location:", "San Francisco, CA")
-            if st.button("📍 Geocode Location"):
-                with st.spinner("Finding location..."):
-                    location_data = geocode_location(location_query)
-                    if location_data['success']:
-                        st.success(f"Found: {location_data['address']}")
-                        st.session_state['location'] = location_data
-                    else:
-                        st.error("Location not found")
+        if input_method == "Select City":
+            selected_city = st.selectbox("Choose a city:", list(MAJOR_CITIES.keys()))
+            lat, lon = MAJOR_CITIES[selected_city]
+            location_data = {
+                'latitude': lat,
+                'longitude': lon,
+                'address': selected_city,
+                'success': True
+            }
+            st.session_state['location'] = location_data
+            st.success(f"Selected: {selected_city}")
+            
         else:
             col1, col2 = st.columns(2)
             with col1:
@@ -430,6 +437,9 @@ def main():
     
     location = st.session_state['location']
     params = st.session_state.get('params', {'radius_km': 500, 'days_back': 30, 'min_magnitude': 4.0})
+    
+    # Display current location info
+    st.info(f"**Monitoring Location:** {location['address']} ({location['latitude']:.4f}, {location['longitude']:.4f})")
     
     # Create tabs
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
