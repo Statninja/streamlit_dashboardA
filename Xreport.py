@@ -42,13 +42,13 @@ if missing:
 # 2. ALL IMPORTS (now guaranteed to exist)
 # -------------------------------------------------
 from reportlab.pdfgen import canvas
-import base64
+
 from io import BytesIO
 
 # -------------------------------------------------
 # 3. PAGE CONFIG & CSS
 # -------------------------------------------------
-import streamlit as st
+
 import requests
 import pandas as pd
 import numpy as np
@@ -67,7 +67,7 @@ from reportlab.lib.units import inch
 from reportlab.lib import colors
 import base64
 
-# Page configuration
+# Page configuration - MUST be first Streamlit command
 st.set_page_config(
     page_title="PanditaData Disaster Intelligence",
     page_icon="🌍",
@@ -75,7 +75,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS
+# Custom CSS for professional styling
 st.markdown("""
 <style>
     .main {
@@ -89,6 +89,7 @@ st.markdown("""
         border-radius: 10px;
         border-left: 5px solid #ff0000;
         margin: 10px 0;
+        font-weight: bold;
     }
     .high-alert {
         background-color: #ff8c00;
@@ -106,17 +107,24 @@ st.markdown("""
         border-left: 5px solid #ffff00;
         margin: 10px 0;
     }
+    .metric-card {
+        background-color: #1e1e1e;
+        padding: 15px;
+        border-radius: 10px;
+        border: 1px solid #333;
+        margin: 5px 0;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # ============================================================================
-# 1. LOCATION SERVICES
+# CORE FUNCTIONS
 # ============================================================================
 
 def geocode_location(query):
-    """Convert location query to coordinates using Nominatim (free)"""
+    """Convert location query to coordinates"""
     try:
-        geolocator = Nominatim(user_agent="panditadata_disaster_monitor")
+        geolocator = Nominatim(user_agent="panditadata_disaster_v1")
         location = geolocator.geocode(query, exactly_one=True, timeout=10)
         if location:
             return {
@@ -129,11 +137,7 @@ def geocode_location(query):
         st.error(f"Geocoding error: {e}")
     return {'success': False}
 
-# ============================================================================
-# 2. EARTHQUAKE MONITORING (USGS)
-# ============================================================================
-
-def fetch_earthquakes(lat, lon, radius_km, days=30, min_mag=2.5):
+def fetch_earthquakes(lat, lon, radius_km=500, days=30, min_mag=2.5):
     """Fetch earthquake data from USGS API"""
     end_date = datetime.now()
     start_date = end_date - timedelta(days=days)
@@ -147,7 +151,7 @@ def fetch_earthquakes(lat, lon, radius_km, days=30, min_mag=2.5):
         'maxradiuskm': radius_km,
         'minmagnitude': min_mag,
         'orderby': 'time',
-        'limit': 2000
+        'limit': 1000
     }
     
     try:
@@ -168,7 +172,7 @@ def process_earthquake_data(geojson, user_lat, user_lon):
         props = feature['properties']
         coords = feature['geometry']['coordinates']
         
-        # Calculate distance
+        # Calculate distance from user
         eq_location = (coords[1], coords[0])
         user_location = (user_lat, user_lon)
         distance_km = geodesic(user_location, eq_location).kilometers
@@ -181,13 +185,16 @@ def process_earthquake_data(geojson, user_lat, user_lon):
             'depth_km': coords[2],
             'location': props.get('place', 'Unknown'),
             'time': datetime.fromtimestamp(props['time']/1000),
-            'distance_km': distance_km,
+            'distance_km': round(distance_km, 1),
             'significance': props.get('sig', 0),
             'tsunami': props.get('tsunami', 0) == 1
         }
         earthquakes.append(earthquake)
     
-    return pd.DataFrame(earthquakes)
+    df = pd.DataFrame(earthquakes)
+    if not df.empty:
+        df = df.sort_values('time', ascending=False)
+    return df
 
 def classify_earthquake_risk(magnitude, distance_km, tsunami=False):
     """Classify earthquake risk level"""
@@ -206,19 +213,14 @@ def classify_earthquake_risk(magnitude, distance_km, tsunami=False):
     else:
         return 'LOW'
 
-# ============================================================================
-# 3. WEATHER FORECASTING (Open-Meteo)
-# ============================================================================
-
 def fetch_weather_forecast(lat, lon):
-    """Get weather forecast from Open-Meteo (free)"""
+    """Get weather forecast from Open-Meteo"""
     params = {
         'latitude': lat,
         'longitude': lon,
-        'hourly': 'temperature_2m,precipitation,weather_code,wind_speed_10m',
-        'daily': 'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum',
+        'current_weather': 'true',
         'timezone': 'auto',
-        'forecast_days': 7
+        'forecast_days': 3
     }
     
     try:
@@ -229,25 +231,9 @@ def fetch_weather_forecast(lat, lon):
         st.error(f"Error fetching weather data: {e}")
         return None
 
-def interpret_weather_code(code):
-    """Convert WMO weather code to description"""
-    codes = {
-        0: 'Clear sky', 1: 'Mainly clear', 2: 'Partly cloudy', 3: 'Overcast',
-        45: 'Fog', 48: 'Depositing rime fog', 51: 'Light drizzle', 53: 'Moderate drizzle',
-        61: 'Slight rain', 63: 'Moderate rain', 65: 'Heavy rain',
-        71: 'Slight snow', 73: 'Moderate snow', 75: 'Heavy snow',
-        95: 'Thunderstorm', 96: 'Thunderstorm with hail', 99: 'Heavy thunderstorm with hail'
-    }
-    return codes.get(int(code), 'Unknown')
-
-# ============================================================================
-# 4. WEATHER ALERTS (NWS - US only)
-# ============================================================================
-
 def fetch_weather_alerts(lat, lon):
     """Fetch weather alerts from NWS (US only)"""
     try:
-        # First get grid point
         points_url = f"https://api.weather.gov/points/{lat},{lon}"
         points_response = requests.get(points_url, headers={'User-Agent': 'PanditaDataApp'}, timeout=30)
         
@@ -258,56 +244,38 @@ def fetch_weather_alerts(lat, lon):
             
             if alerts_response.status_code == 200:
                 return alerts_response.json()
-    except Exception as e:
-        st.sidebar.info("Weather alerts only available for US locations")
+    except Exception:
+        pass  # Silent fail for non-US locations
     return None
 
-# ============================================================================
-# 5. SPACE WEATHER (NASA/SWPC)
-# ============================================================================
-
 def fetch_space_weather():
-    """Get space weather data from NASA/SWPC"""
+    """Get space weather data"""
     try:
-        # Geomagnetic storms
         kp_response = requests.get("https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json", timeout=30)
         kp_data = kp_response.json() if kp_response.status_code == 200 else []
         
-        # Solar flares
-        flare_response = requests.get("https://services.swpc.noaa.gov/json/goes/primary/xrays-7-day.json", timeout=30)
-        flare_data = flare_response.json() if flare_response.status_code == 200 else []
-        
         return {
             'kp_index': kp_data[-1][1] if kp_data else 'N/A',
-            'solar_flares': flare_data,
             'timestamp': datetime.now()
         }
     except Exception as e:
         st.error(f"Error fetching space weather: {e}")
         return None
 
-# ============================================================================
-# 6. HURRICANE TRACKING (NOAA)
-# ============================================================================
-
-def fetch_active_hurricanes():
-    """Get active hurricane information from NOAA"""
+def fetch_hurricanes():
+    """Get active hurricane information"""
     try:
-        response = requests.get("https://www.nhc.noaa.gov/current.json", timeout=30)
+        response = requests.get("https://www.nhc.noaa.gov/products.json", timeout=30)
         if response.status_code == 200:
             return response.json()
     except Exception as e:
         st.error(f"Error fetching hurricane data: {e}")
     return None
 
-# ============================================================================
-# 7. PDF REPORT GENERATION
-# ============================================================================
-
-def create_pdf_report(location_data, earthquake_data, weather_data, space_weather, hurricanes, alerts):
+def create_pdf_report(location_data, earthquake_data, weather_data, space_weather, alerts):
     """Generate comprehensive PDF report"""
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=0.5*inch)
+    doc = SimpleDocTemplate(buffer, pagesize=A4)
     styles = getSampleStyleSheet()
     story = []
     
@@ -332,8 +300,8 @@ def create_pdf_report(location_data, earthquake_data, weather_data, space_weathe
     # Executive Summary
     story.append(Paragraph("EXECUTIVE SUMMARY", styles['Heading2']))
     
-    # Count alerts by severity
-    critical_count = len([eq for _, eq in earthquake_data.iterrows() if classify_earthquake_risk(eq['magnitude'], eq['distance_km']) in ['CATASTROPHIC', 'CRITICAL']])
+    critical_count = len([eq for _, eq in earthquake_data.iterrows() 
+                         if classify_earthquake_risk(eq['magnitude'], eq['distance_km']) in ['CATASTROPHIC', 'CRITICAL']])
     
     summary_text = f"""
     This report covers disaster monitoring for {location_data['address']}. 
@@ -346,9 +314,8 @@ def create_pdf_report(location_data, earthquake_data, weather_data, space_weathe
     # Earthquake Section
     story.append(Paragraph("EARTHQUAKE ACTIVITY", styles['Heading2']))
     if not earthquake_data.empty:
-        # Create simplified table for PDF
         eq_table_data = [['Time', 'Magnitude', 'Distance', 'Location', 'Risk']]
-        for _, eq in earthquake_data.head(10).iterrows():
+        for _, eq in earthquake_data.head(15).iterrows():
             risk = classify_earthquake_risk(eq['magnitude'], eq['distance_km'])
             eq_table_data.append([
                 eq['time'].strftime('%m/%d %H:%M'),
@@ -377,10 +344,11 @@ def create_pdf_report(location_data, earthquake_data, weather_data, space_weathe
     story.append(Spacer(1, 20))
     
     # Weather Section
-    story.append(Paragraph("WEATHER FORECAST", styles['Heading2']))
-    if weather_data:
-        current_temp = weather_data['hourly']['temperature_2m'][0] if 'hourly' in weather_data else 'N/A'
-        story.append(Paragraph(f"Current Temperature: {current_temp}°C", styles['Normal']))
+    story.append(Paragraph("WEATHER CONDITIONS", styles['Heading2']))
+    if weather_data and 'current_weather' in weather_data:
+        current = weather_data['current_weather']
+        story.append(Paragraph(f"Current Temperature: {current['temperature']}°C", styles['Normal']))
+        story.append(Paragraph(f"Wind Speed: {current['windspeed']} km/h", styles['Normal']))
     
     # Space Weather
     story.append(Paragraph("SPACE WEATHER", styles['Heading2']))
@@ -392,7 +360,7 @@ def create_pdf_report(location_data, earthquake_data, weather_data, space_weathe
     return buffer
 
 # ============================================================================
-# 8. STREAMLIT UI
+# STREAMLIT UI
 # ============================================================================
 
 def main():
@@ -401,22 +369,19 @@ def main():
     
     # Sidebar
     with st.sidebar:
-        st.image("https://via.placeholder.com/200x50/2E86AB/FFFFFF?text=PanditaData", width=200)
-        st.markdown("---")
-        
-        # Location input
-        st.subheader("📍 Location Setup")
+        st.markdown("### 🌍 Location Setup")
         input_method = st.radio("Input Method:", ["City/Address", "Coordinates"])
         
         location_data = None
         
         if input_method == "City/Address":
             location_query = st.text_input("Enter location:", "San Francisco, CA")
-            if st.button("Geocode Location"):
+            if st.button("📍 Geocode Location"):
                 with st.spinner("Finding location..."):
                     location_data = geocode_location(location_query)
                     if location_data['success']:
                         st.success(f"Found: {location_data['address']}")
+                        st.session_state['location'] = location_data
                     else:
                         st.error("Location not found")
         else:
@@ -431,15 +396,20 @@ def main():
                 'address': f"Custom Location ({lat:.4f}, {lon:.4f})",
                 'success': True
             }
-        
-        if location_data and location_data['success']:
             st.session_state['location'] = location_data
         
-        st.markdown("---")
-        st.subheader("⚙️ Monitoring Parameters")
-        radius_km = st.slider("Search Radius (km)", 50, 1000, 500)
-        days_back = st.slider("Days to Analyze", 1, 90, 30)
-        min_magnitude = st.slider("Minimum Magnitude", 2.5, 7.0, 4.0)
+        if 'location' in st.session_state and st.session_state['location']['success']:
+            st.markdown("---")
+            st.subheader("⚙️ Monitoring Parameters")
+            radius_km = st.slider("Search Radius (km)", 50, 1000, 500)
+            days_back = st.slider("Days to Analyze", 1, 90, 30)
+            min_magnitude = st.slider("Minimum Magnitude", 2.5, 7.0, 4.0)
+            
+            st.session_state['params'] = {
+                'radius_km': radius_km,
+                'days_back': days_back,
+                'min_magnitude': min_magnitude
+            }
         
         st.markdown("---")
         if st.button("🔄 Refresh All Data"):
@@ -451,8 +421,9 @@ def main():
         return
     
     location = st.session_state['location']
+    params = st.session_state.get('params', {'radius_km': 500, 'days_back': 30, 'min_magnitude': 4.0})
     
-    # Create tabs for different sections
+    # Create tabs
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "🌋 Earthquake Monitor", 
         "🌤️ Weather & Alerts", 
@@ -464,13 +435,13 @@ def main():
     with tab1:
         st.header("Earthquake Monitoring")
         
-        with st.spinner("Fetching earthquake data..."):
+        with st.spinner("Fetching earthquake data from USGS..."):
             eq_data = fetch_earthquakes(
                 location['latitude'], 
                 location['longitude'], 
-                radius_km, 
-                days_back, 
-                min_magnitude
+                params['radius_km'], 
+                params['days_back'], 
+                params['min_magnitude']
             )
             
             if eq_data:
@@ -497,7 +468,8 @@ def main():
                             critical_quakes.append((eq, risk))
                     
                     if critical_quakes:
-                        for eq, risk in critical_quakes[:3]:  # Show top 3
+                        st.subheader("🚨 High Priority Alerts")
+                        for eq, risk in critical_quakes[:3]:
                             alert_class = "critical-alert" if risk == 'CATASTROPHIC' else "high-alert"
                             st.markdown(f"""
                             <div class="{alert_class}">
@@ -508,8 +480,8 @@ def main():
                             </div>
                             """, unsafe_allow_html=True)
                     
-                    
-                    st.subheader("Earthquake Map")
+                    # Map
+                    st.subheader("Interactive Earthquake Map")
                     map_center = [location['latitude'], location['longitude']]
                     m = folium.Map(location=map_center, zoom_start=6)
                     
@@ -536,6 +508,16 @@ def main():
                             fillOpacity=0.6
                         ).add_to(m)
                     
+                    # Add search radius circle
+                    folium.Circle(
+                        map_center,
+                        radius=params['radius_km'] * 1000,  # Convert to meters
+                        color='blue',
+                        fill=True,
+                        fillOpacity=0.1,
+                        popup=f"Search Radius: {params['radius_km']}km"
+                    ).add_to(m)
+                    
                     folium_static(m, width=800, height=500)
                     
                     # Data table
@@ -546,9 +528,9 @@ def main():
                     st.dataframe(display_df.head(20), use_container_width=True)
                     
                 else:
-                    st.success("No earthquakes detected in the selected area and time period.")
+                    st.success("✅ No earthquakes detected in the selected area and time period.")
             else:
-                st.error("Failed to fetch earthquake data")
+                st.error("❌ Failed to fetch earthquake data from USGS")
     
     with tab2:
         st.header("Weather Monitoring")
@@ -566,16 +548,21 @@ def main():
                     with col2:
                         st.metric("Wind Speed", f"{current['windspeed']} km/h")
                     with col3:
-                        weather_desc = interpret_weather_code(current['weathercode'])
-                        st.metric("Conditions", weather_desc)
+                        st.metric("Wind Direction", f"{current['winddirection']}°")
+                    with col4:
+                        st.metric("Weather Code", current['weathercode'])
                 
                 # Weather alerts
                 alerts_data = fetch_weather_alerts(location['latitude'], location['longitude'])
-                if alerts_data and 'features' in alerts_data:
-                    st.subheader("Weather Alerts")
+                if alerts_data and 'features' in alerts_data and alerts_data['features']:
+                    st.subheader("⚠️ Weather Alerts")
                     for alert in alerts_data['features'][:5]:
                         props = alert['properties']
                         st.warning(f"**{props['event']}**: {props['headline']}")
+                else:
+                    st.info("No active weather alerts for this location")
+            else:
+                st.error("Failed to fetch weather data")
     
     with tab3:
         st.header("Space Weather")
@@ -586,43 +573,88 @@ def main():
             if space_data:
                 col1, col2, col3 = st.columns(3)
                 with col1:
-                    kp_value = float(space_data['kp_index']) if space_data['kp_index'] != 'N/A' else 0
-                    st.metric("Geomagnetic Kp Index", space_data['kp_index'])
+                    kp_value = space_data['kp_index']
+                    st.metric("Geomagnetic Kp Index", kp_value)
                 with col2:
-                    if kp_value >= 5:
-                        st.error("Geomagnetic Storm Active")
-                    elif kp_value >= 4:
-                        st.warning("Unsettled Geomagnetic Conditions")
-                    else:
-                        st.success("Quiet Geomagnetic Conditions")
+                    if kp_value != 'N/A':
+                        kp_num = float(kp_value)
+                        if kp_num >= 5:
+                            st.error("🌩️ Geomagnetic Storm Active")
+                        elif kp_num >= 4:
+                            st.warning("🌤️ Unsettled Geomagnetic Conditions")
+                        else:
+                            st.success("☀️ Quiet Geomagnetic Conditions")
+                with col3:
+                    st.metric("Last Updated", space_data['timestamp'].strftime('%H:%M UTC'))
+                
+                st.info("""
+                **Kp Index Guide:**
+                - 0-4: Quiet to unsettled conditions
+                - 5: Minor geomagnetic storm
+                - 6: Moderate geomagnetic storm  
+                - 7-9: Strong to severe geomagnetic storm
+                """)
+            else:
+                st.error("Failed to fetch space weather data")
     
     with tab4:
         st.header("Hurricane & Tropical Storm Tracking")
         
         with st.spinner("Checking for active storms..."):
-            hurricanes = fetch_active_hurricanes()
+            hurricanes = fetch_hurricanes()
             
-            if hurricanes:
-                for storm in hurricanes.get('activeStorms', [])[:5]:
-                    with st.expander(f"🌀 {storm.get('name', 'Unknown')} - {storm.get('basin', 'Unknown')}"):
-                        st.write(f"**Location**: {storm.get('location', 'N/A')}")
-                        st.write(f"**Intensity**: {storm.get('intensity', 'N/A')}")
-                        st.write(f"**Movement**: {storm.get('movement', 'N/A')}")
+            if hurricanes and 'products' in hurricanes:
+                active_storms = []
+                for product in hurricanes['products']:
+                    if 'tropical' in product.get('name', '').lower():
+                        active_storms.append(product)
+                
+                if active_storms:
+                    st.subheader("🌀 Active Tropical Systems")
+                    for storm in active_storms[:5]:
+                        with st.expander(f"🌪️ {storm.get('name', 'Unknown Storm')}"):
+                            st.write(f"**Type**: {storm.get('name', 'N/A')}")
+                            st.write(f"**Issued**: {storm.get('issuanceTime', 'N/A')}")
+                else:
+                    st.success("✅ No active tropical storms reported")
             else:
-                st.info("No active tropical storms reported")
+                st.info("No hurricane data available or no active storms")
     
     with tab5:
         st.header("Comprehensive PDF Report")
         
-        # Generate PDF
-        if st.button("📄 Generate Professional PDF Report"):
-            with st.spinner("Generating comprehensive report..."):
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            st.markdown("""
+            ### 📄 Professional Report Generation
+            
+            Generate a comprehensive PDF report containing:
+            - Location overview and coordinates
+            - Earthquake activity and risk assessment
+            - Weather conditions and alerts
+            - Space weather status
+            - Executive summary
+            
+            This report is suitable for emergency planning, research documentation, 
+            and professional disaster management purposes.
+            """)
+        
+        with col2:
+            st.image("https://via.placeholder.com/200x200/2E86AB/FFFFFF?text=PDF", width=150)
+        
+        if st.button("🔄 Generate Full PDF Report", type="primary"):
+            with st.spinner("Compiling comprehensive report..."):
                 # Fetch all data
-                eq_data_raw = fetch_earthquakes(location['latitude'], location['longitude'], radius_km, days_back, min_magnitude)
+                eq_data_raw = fetch_earthquakes(
+                    location['latitude'], 
+                    location['longitude'], 
+                    params['radius_km'], 
+                    params['days_back'], 
+                    params['min_magnitude']
+                )
                 df_earthquakes = process_earthquake_data(eq_data_raw, location['latitude'], location['longitude']) if eq_data_raw else pd.DataFrame()
                 weather_data = fetch_weather_forecast(location['latitude'], location['longitude'])
                 space_data = fetch_space_weather()
-                hurricane_data = fetch_active_hurricanes()
                 alerts_data = fetch_weather_alerts(location['latitude'], location['longitude'])
                 
                 pdf_buffer = create_pdf_report(
@@ -630,7 +662,6 @@ def main():
                     df_earthquakes, 
                     weather_data, 
                     space_data, 
-                    hurricane_data, 
                     alerts_data
                 )
                 
@@ -638,14 +669,14 @@ def main():
                 st.download_button(
                     label="📥 Download PDF Report",
                     data=pdf_buffer,
-                    file_name=f"disaster_report_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
-                    mime="application/pdf"
+                    file_name=f"disaster_intelligence_report_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                    mime="application/pdf",
+                    type="primary"
                 )
         
         # Quick summary
-        st.subheader("Current Situation Summary")
+        st.subheader("📈 Current Situation Summary")
         
-        # Earthquake summary
         if 'df_earthquakes' in locals() and not df_earthquakes.empty:
             recent_quakes = df_earthquakes[df_earthquakes['time'] > datetime.now() - timedelta(days=7)]
             st.write(f"**Recent seismic activity**: {len(recent_quakes)} earthquakes in past 7 days")
@@ -654,9 +685,11 @@ def main():
             high_risk = len([eq for _, eq in df_earthquakes.iterrows() 
                            if classify_earthquake_risk(eq['magnitude'], eq['distance_km']) in ['CATASTROPHIC', 'CRITICAL']])
             if high_risk > 0:
-                st.error(f"**{high_risk} high-risk earthquakes** detected in monitoring area")
+                st.error(f"🚨 **{high_risk} high-risk earthquakes** detected in monitoring area")
             else:
-                st.success("No high-risk seismic activity detected")
+                st.success("✅ No high-risk seismic activity detected")
+        else:
+            st.info("No earthquake data available for summary")
 
 if __name__ == "__main__":
     main()
