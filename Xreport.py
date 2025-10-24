@@ -1,46 +1,4 @@
-# app.py
-# PanditaData Disaster & Space Intelligence Platform
-# Works on Streamlit Cloud with ONLY a .py URL
-# -------------------------------------------------
 import streamlit as st
-import sys
-import importlib.util
-
-# -------------------------------------------------
-# 1. PACKAGE CHECKER – tells you exactly what to add
-# -------------------------------------------------
-
-
-missing = []
-for mod, req in REQUIRED.items():
-    if importlib.util.find_spec(mod) is None:
-        missing.append(req)
-
-if missing:
-    st.error("Missing packages – add them to **requirements.txt** in your repo:")
-    for r in missing:
-        st.code(r)
-    st.info(
-        "How to add:\n"
-        "1. Open your repo on GitHub\n"
-        "2. Click **Add file → Create new file**\n"
-        "3. Name it `requirements.txt`\n"
-        "4. Paste the lines above\n"
-        "5. Commit → Streamlit will rebuild automatically"
-    )
-    st.stop()   # stop execution until packages are installed
-
-# -------------------------------------------------
-# 2. ALL IMPORTS (now guaranteed to exist)
-# -------------------------------------------------
-from reportlab.pdfgen import canvas
-
-from io import BytesIO
-
-# -------------------------------------------------
-# 3. PAGE CONFIG & CSS
-# -------------------------------------------------
-
 import requests
 import pandas as pd
 import numpy as np
