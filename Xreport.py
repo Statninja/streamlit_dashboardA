@@ -9,15 +9,7 @@ import importlib.util
 # -------------------------------------------------
 # 1. PACKAGE CHECKER – tells you exactly what to add
 # -------------------------------------------------
-REQUIRED = {
-    "requests": "requests>=2.31.0",
-    "pandas": "pandas>=2.0.0",
-    "numpy": "numpy>=1.24.0",
-    "geopy": "geopy>=2.3.0",
-    "plotly": "plotly>=5.18.0",
-    "astropy": "astropy>=6.0.0",
-    "reportlab": "reportlab>=4.0.0",
-}
+
 
 missing = []
 for mod, req in REQUIRED.items():
