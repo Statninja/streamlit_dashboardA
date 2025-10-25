@@ -2,6 +2,7 @@
 """
 Location-Based Disaster Report Generator
 Streamlit-Cloud-ready version – uses pdfkit (wkhtmltopdf) instead of weasyprint.
+Fixed: Default dates to past 30 days to avoid future API errors.
 """
 
 import streamlit as st
@@ -65,6 +66,15 @@ def geocode_location(city_name):
 # ----------------------------------------------------------------------
 @st.cache_data(ttl=1800)
 def fetch_earthquakes(lat, lon, start, end, max_radius=1000):
+    # Validate dates: end cannot exceed current date
+    current_date = datetime.now().date()
+    if end.date() > current_date:
+        end = current_date
+        st.warning(f"End date adjusted to today ({end.strftime('%Y-%m-%d')}) to avoid API errors.")
+    if start.date() > end.date():
+        start = end - timedelta(days=30)
+        st.warning(f"Start date adjusted to {start.strftime('%Y-%m-%d')}.")
+    
     url = "https://earthquake.usgs.gov/fdsnws/event/1/query"
     params = {
         "format": "geojson",
@@ -96,6 +106,12 @@ def fetch_earthquakes(lat, lon, start, end, max_radius=1000):
                 "lon": c[0],
             })
         return pd.DataFrame(rows)
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 400:
+            st.error("Invalid query parameters. Please check date range (cannot include future dates).")
+        else:
+            st.error(f"Earthquake API error: {e}")
+        return pd.DataFrame()
     except Exception as e:
         st.error(f"Earthquake API error: {e}")
         return pd.DataFrame()
@@ -109,7 +125,8 @@ def get_grid(lat, lon):
         r.raise_for_status()
         data = r.json()["properties"]
         return data["forecast"], (data["gridId"], data["gridX"], data["gridY"])
-    except Exception:
+    except Exception as e:
+        st.warning(f"NOAA grid fetch failed (US-only): {e}. Falling back to empty forecast.")
         return None, None
 
 @st.cache_data(ttl=1800)
@@ -139,7 +156,7 @@ def fetch_alerts(lat, lon, country="US"):
     url = "https://api.weather.gov/alerts/active"
     params = {"point": f"{lat},{lon}"}
     if country != "US":
-        params["area"] = country
+        st.warning("Alerts are US-only; using general query.")
     headers = {"User-Agent": "DisasterReportApp/1.0 (contact@example.com)"}
     try:
         r = requests.get(url, params=params, headers=headers, timeout=10)
@@ -205,18 +222,24 @@ def build_pdf_html(title, loc_name, quakes_df, forecast_df, alerts_df, prim, sec
 
     # ---- static assets -------------------------------------------------
     map_b64 = None
-    if not quakes_df.empty or not alerts_df.empty:
-        map_b64 = map_to_png_base64(make_map(st.session_state.lat, st.session_state.lon, quakes_df, alerts_df))
+    try:
+        if not quakes_df.empty or not alerts_df.empty:
+            map_b64 = map_to_png_base64(make_map(st.session_state.lat, st.session_state.lon, quakes_df, alerts_df))
+    except Exception as e:
+        st.warning(f"Map PNG generation failed for PDF: {e}. Skipping map in PDF.")
 
     pie_b64 = None
-    if not quakes_df.empty:
-        bins = [0, 10, 100, 500, 1000]
-        labels = ["0-10km", "11-100km", "101-500km", ">500km"]
-        quakes_df["bin"] = pd.cut(quakes_df["distance_km"], bins=bins, labels=labels, include_lowest=True)
-        counts = quakes_df["bin"].value_counts().reindex(labels, fill_value=0)
-        fig = px.pie(values=counts.values, names=counts.index,
-                     color_discrete_sequence=[prim, sec])
-        pie_b64 = fig_to_png_base64(fig)
+    try:
+        if not quakes_df.empty:
+            bins = [0, 10, 100, 500, 1000]
+            labels = ["0-10km", "11-100km", "101-500km", ">500km"]
+            quakes_df["bin"] = pd.cut(quakes_df["distance_km"], bins=bins, labels=labels, include_lowest=True)
+            counts = quakes_df["bin"].value_counts().reindex(labels, fill_value=0)
+            fig = px.pie(values=counts.values, names=counts.index,
+                         color_discrete_sequence=[prim, sec])
+            pie_b64 = fig_to_png_base64(fig)
+    except Exception:
+        pass
 
     # ---- HTML ---------------------------------------------------------
     html = f"""
@@ -233,6 +256,7 @@ def build_pdf_html(title, loc_name, quakes_df, forecast_df, alerts_df, prim, sec
             th {{background:#f4f4f4;}}
             img {{max-width:100%; height:auto; display:block; margin:20px auto;}}
             .footer {{position:fixed; bottom:0; left:0; right:0; text-align:center; font-size:10px;}}
+            .page-break {{ page-break-after: always; }}
         </style>
     </head>
     <body>
@@ -243,7 +267,7 @@ def build_pdf_html(title, loc_name, quakes_df, forecast_df, alerts_df, prim, sec
         </div>
         <div class="footer">Confidential – Page <span class="page">1</span></div>
 
-        <pagebreak />
+        <div class="page-break"></div>
 
         <h2>Executive Summary</h2>
         <p><strong>Location:</strong> {loc_name} ({st.session_state.lat:.4f}, {st.session_state.lon:.4f})</p>
@@ -253,10 +277,10 @@ def build_pdf_html(title, loc_name, quakes_df, forecast_df, alerts_df, prim, sec
     if pie_b64:
         html += f'<img src="data:image/png;base64,{pie_b64}" />'
     if map_b64:
-        html += f'<pagebreak /><img src="data:image/png;base64,{map_b64}" />'
+        html += f'<div class="page-break"></div><img src="data:image/png;base64,{map_b64}" />'
 
     html += """
-        <pagebreak />
+        <div class="page-break"></div>
         <h2>Earthquakes (Top 10)</h2>
     """
     if not quakes_df.empty:
@@ -265,14 +289,14 @@ def build_pdf_html(title, loc_name, quakes_df, forecast_df, alerts_df, prim, sec
         html += top.to_html(index=False)
 
     html += """
-        <pagebreak />
+        <div class="page-break"></div>
         <h2>7-Day Forecast</h2>
     """
     if not forecast_df.empty:
         html += forecast_df[["name","temperature","shortForecast"]].to_html(index=False)
 
     html += """
-        <pagebreak />
+        <div class="page-break"></div>
         <h2>Active Alerts</h2>
     """
     if not alerts_df.empty:
@@ -317,11 +341,15 @@ def main():
 
         country = st.selectbox("Country", ["US", "CA", "MX"], index=0)
 
+        # Default to past 30 days to avoid future dates
+        default_start = datetime.now() - timedelta(days=30)
+        default_end = datetime.now()
+
         col1, col2 = st.columns(2)
         with col1:
-            start = st.date_input("Start", datetime.now() - timedelta(days=30))
+            start = st.date_input("Start", default_start)
         with col2:
-            end = st.date_input("End", datetime.now())
+            end = st.date_input("End", default_end)
 
         st.header("Theme")
         prim = st.color_picker("Primary", "#FF6B6B")
@@ -456,31 +484,34 @@ def main():
     # ------------------- PDF EXPORT -------------------
     if st.button("Generate & Download PDF Report", type="primary"):
         with st.spinner("Building PDF..."):
-            html_str = build_pdf_html(
-                "Disaster Report", loc_name, quakes, forecast, alerts,
-                st.session_state.primary, st.session_state.secondary,
-            )
-            # pdfkit options – works on Streamlit Cloud
-            config = pdfkit.configuration(wkhtmltopdf="/usr/bin/wkhtmltopdf")
-            pdf_bytes = pdfkit.from_string(
-                html_str,
-                False,
-                configuration=config,
-                options={
-                    "page-size": "Letter",
-                    "margin-top": "0.75in",
-                    "margin-right": "0.75in",
-                    "margin-bottom": "0.75in",
-                    "margin-left": "0.75in",
-                    "encoding": "UTF-8",
-                    "no-outline": None,
-                    "enable-local-file-access": None,
-                },
-            )
-            b64 = base64.b64encode(pdf_bytes).decode()
-            href = f'<a href="data:application/pdf;base64,{b64}" download="{loc_name.replace(" ", "_")}_Report_2025-10-25.pdf">Download PDF now</a>'
-            st.markdown(href, unsafe_allow_html=True)
-            st.success("PDF ready!")
+            try:
+                html_str = build_pdf_html(
+                    "Disaster Report", loc_name, quakes, forecast, alerts,
+                    st.session_state.primary, st.session_state.secondary,
+                )
+                # pdfkit options – works on Streamlit Cloud
+                config = pdfkit.configuration(wkhtmltopdf="/usr/bin/wkhtmltopdf")
+                pdf_bytes = pdfkit.from_string(
+                    html_str,
+                    False,
+                    configuration=config,
+                    options={
+                        "page-size": "Letter",
+                        "margin-top": "0.75in",
+                        "margin-right": "0.75in",
+                        "margin-bottom": "0.75in",
+                        "margin-left": "0.75in",
+                        "encoding": "UTF-8",
+                        "no-outline": None,
+                        "enable-local-file-access": None,
+                    },
+                )
+                b64 = base64.b64encode(pdf_bytes).decode()
+                href = f'<a href="data:application/pdf;base64,{b64}" download="{loc_name.replace(" ", "_")}_Report_2025-10-25.pdf">Download PDF now</a>'
+                st.markdown(href, unsafe_allow_html=True)
+                st.success("PDF ready!")
+            except Exception as e:
+                st.error(f"PDF generation failed: {e}")
 
 if __name__ == "__main__":
     main()
