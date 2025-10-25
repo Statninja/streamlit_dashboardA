@@ -1,9 +1,7 @@
 # app.py
 """
 Location-Based Disaster Report Generator
-A production-ready Streamlit app for interactive earthquake, weather, and alert reports.
-Features real-time USGS/NOAA data, customizable themes, interactive maps/charts, and PDF export.
-Deployable on Streamlit Community Cloud.
+Streamlit-Cloud-ready version – uses pdfkit (wkhtmltopdf) instead of weasyprint.
 """
 
 import streamlit as st
@@ -15,176 +13,127 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 from geopy.geocoders import Nominatim
-from geopy.exc import GeocoderTimedOut
 import numpy as np
 import base64
 from io import BytesIO
 import pdfkit
-import weasyprint
-from weasyprint import HTML
 import os
 import json
 import hashlib
 
-# === CONFIGURATION ===
+# ----------------------------------------------------------------------
+# PAGE CONFIG & CSS
+# ----------------------------------------------------------------------
 st.set_page_config(
     page_title="Disaster Report Generator",
     page_icon="🌍",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
-# === REQUIREMENTS NOTE ===
-# Save this as requirements.txt in your GitHub repo:
-"""
-streamlit>=1.30.0
-folium>=0.14.0
-streamlit-folium>=0.13.0
-plotly>=5.15.0
-pandas>=1.5.0
-geopy>=2.3.0
-requests>=2.28.0
-pdfkit>=1.0.0
-weasyprint>=59.0
-"""
-
-# === CUSTOM CSS INJECTION FOR THEMES ===
 def inject_custom_css(primary_color, secondary_color, background_color):
     st.markdown(f"""
     <style>
-    :root {{
-        --primary-color: {primary_color};
-        --secondary-color: {secondary_color};
-    }}
-    .reportview-container {{
-        background: {background_color};
-    }}
-    .stApp {{
-        background: {background_color};
-    }}
-    h1, h2, h3 {{
-        color: var(--primary-color);
-    }}
-    .stButton>button {{
-        background-color: var(--primary-color);
-        color: white;
-    }}
-    .stMetric {{
-        background-color: rgba(255, 107, 107, 0.1);
-        padding: 10px;
-        border-radius: 8px;
-        border-left: 5px solid var(--primary-color);
-    }}
+    :root {{ --primary-color: {primary_color}; --secondary-color: {secondary_color}; }}
+    .stApp {{ background: {background_color}; }}
+    h1, h2, h3 {{ color: var(--primary-color); }}
+    .stButton>button {{ background-color: var(--primary-color); color: white; }}
     </style>
     """, unsafe_allow_html=True)
 
-# === HELPER: Haversine Distance ===
+# ----------------------------------------------------------------------
+# HELPERS
+# ----------------------------------------------------------------------
 def haversine(lat1, lon1, lat2, lon2):
-    R = 6371  # Earth radius in km
+    R = 6371
     dlat = np.radians(lat2 - lat1)
     dlon = np.radians(lon2 - lon1)
     a = np.sin(dlat/2)**2 + np.cos(np.radians(lat1)) * np.cos(np.radians(lat2)) * np.sin(dlon/2)**2
-    c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1-a))
-    return R * c
+    return R * 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
 
-# === GEOCODING ===
 @st.cache_data(ttl=3600)
 def geocode_location(city_name):
-    geolocator = Nominatim(user_agent="disaster_report_app_v1.0_contact@example.com")
+    geolocator = Nominatim(user_agent="disaster_report_app_v1")
     try:
-        location = geolocator.geocode(city_name)
-        if location:
-            return location.latitude, location.longitude
-        else:
-            return None, None
-    except GeocoderTimedOut:
-        st.warning("Geocoding timed out. Using default coordinates.")
-        return 37.7749, -122.4194
+        loc = geolocator.geocode(city_name)
+        return (loc.latitude, loc.longitude) if loc else (None, None)
+    except Exception:
+        return None, None
 
-# === DATA FETCHING: EARTHQUAKES ===
+# ----------------------------------------------------------------------
+# DATA FETCHERS (cached)
+# ----------------------------------------------------------------------
 @st.cache_data(ttl=1800)
-def fetch_earthquakes(lat, lon, start_date, end_date, max_radius=1000):
+def fetch_earthquakes(lat, lon, start, end, max_radius=1000):
     url = "https://earthquake.usgs.gov/fdsnws/event/1/query"
     params = {
         "format": "geojson",
-        "starttime": start_date.strftime("%Y-%m-%d"),
-        "endtime": end_date.strftime("%Y-%m-%d"),
+        "starttime": start.strftime("%Y-%m-%d"),
+        "endtime": end.strftime("%Y-%m-%d"),
         "latitude": lat,
         "longitude": lon,
         "maxradiuskm": max_radius,
         "orderby": "time-desc",
-        "limit": 200
+        "limit": 200,
     }
     headers = {"User-Agent": "DisasterReportApp/1.0 (contact@example.com)"}
     try:
-        response = requests.get(url, params=params, headers=headers, timeout=10)
-        response.raise_for_status()
-        data = response.json()
-        features = data.get("features", [])
-        
-        quakes = []
-        for f in features:
-            props = f["properties"]
-            coords = f["geometry"]["coordinates"]
-            dist = haversine(lat, lon, coords[1], coords[0])
-            quakes.append({
-                "time": datetime.fromtimestamp(props["time"]/1000),
-                "magnitude": props["mag"],
-                "depth": coords[2],
-                "place": props["place"],
+        r = requests.get(url, params=params, headers=headers, timeout=10)
+        r.raise_for_status()
+        feats = r.json().get("features", [])
+        rows = []
+        for f in feats:
+            p = f["properties"]
+            c = f["geometry"]["coordinates"]
+            dist = haversine(lat, lon, c[1], c[0])
+            rows.append({
+                "time": datetime.fromtimestamp(p["time"]/1000),
+                "magnitude": p["mag"],
+                "depth": c[2],
+                "place": p["place"],
                 "distance_km": round(dist, 2),
-                "lat": coords[1],
-                "lon": coords[0]
+                "lat": c[1],
+                "lon": c[0],
             })
-        return pd.DataFrame(quakes)
+        return pd.DataFrame(rows)
     except Exception as e:
-        st.error(f"Earthquake API error: {str(e)}")
+        st.error(f"Earthquake API error: {e}")
         return pd.DataFrame()
 
-# === DATA FETCHING: WEATHER GRID ===
 @st.cache_data(ttl=1800)
-def get_weather_grid(lat, lon):
+def get_grid(lat, lon):
     url = f"https://api.weather.gov/points/{lat},{lon}"
     headers = {"User-Agent": "DisasterReportApp/1.0 (contact@example.com)"}
     try:
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
-        data = response.json()
-        forecast_url = data["properties"]["forecast"]
-        grid_data = data["properties"]["gridId"], data["properties"]["gridX"], data["properties"]["gridY"]
-        return forecast_url, grid_data
-    except Exception as e:
-        st.warning(f"NOAA grid fetch failed: {str(e)}. Using fallback.")
+        r = requests.get(url, headers=headers, timeout=10)
+        r.raise_for_status()
+        data = r.json()["properties"]
+        return data["forecast"], (data["gridId"], data["gridX"], data["gridY"])
+    except Exception:
         return None, None
 
-# === DATA FETCHING: FORECAST ===
 @st.cache_data(ttl=1800)
-def fetch_forecast(forecast_url):
-    if not forecast_url:
+def fetch_forecast(url):
+    if not url:
         return pd.DataFrame()
     headers = {"User-Agent": "DisasterReportApp/1.0 (contact@example.com)"}
     try:
-        response = requests.get(forecast_url, headers=headers, timeout=10)
-        response.raise_for_status()
-        periods = response.json()["properties"]["periods"][:14]  # 7 days
-        forecast = []
+        r = requests.get(url, headers=headers, timeout=10)
+        r.raise_for_status()
+        periods = r.json()["properties"]["periods"][:14]
+        rows = []
         for p in periods:
-            forecast.append({
+            rows.append({
                 "name": p["name"],
-                "startTime": p["startTime"],
                 "temperature": p["temperature"],
-                "temperatureUnit": p["temperatureUnit"],
                 "windSpeed": p["windSpeed"],
-                "windDirection": p["windDirection"],
                 "shortForecast": p["shortForecast"],
-                "probabilityOfPrecipitation": p.get("probabilityOfPrecipitation", {}).get("value", 0)
+                "precip": p.get("probabilityOfPrecipitation", {}).get("value", 0),
             })
-        return pd.DataFrame(forecast)
-    except Exception as e:
-        st.warning(f"Forecast fetch failed: {str(e)}")
+        return pd.DataFrame(rows)
+    except Exception:
         return pd.DataFrame()
 
-# === DATA FETCHING: ALERTS ===
 @st.cache_data(ttl=900)
 def fetch_alerts(lat, lon, country="US"):
     url = "https://api.weather.gov/alerts/active"
@@ -193,350 +142,345 @@ def fetch_alerts(lat, lon, country="US"):
         params["area"] = country
     headers = {"User-Agent": "DisasterReportApp/1.0 (contact@example.com)"}
     try:
-        response = requests.get(url, params=params, headers=headers, timeout=10)
-        response.raise_for_status()
-        features = response.json().get("features", [])
-        alerts = []
-        for f in features:
+        r = requests.get(url, params=params, headers=headers, timeout=10)
+        r.raise_for_status()
+        feats = r.json().get("features", [])
+        rows = []
+        for f in feats:
             p = f["properties"]
-            alerts.append({
+            rows.append({
                 "event": p["event"],
                 "severity": p["severity"],
                 "urgency": p["urgency"],
                 "areaDesc": p["areaDesc"],
-                "description": p["description"],
+                "description": p["description"][:500],
                 "effective": p["effective"],
-                "expires": p["expires"]
+                "expires": p["expires"],
             })
-        return pd.DataFrame(alerts)
-    except Exception as e:
-        st.warning(f"Alerts fetch failed: {str(e)}")
+        return pd.DataFrame(rows)
+    except Exception:
         return pd.DataFrame()
 
-# === MAP GENERATION ===
-def create_folium_map(lat, lon, quakes_df=None, alerts_df=None):
-    m = folium.Map(location=[lat, lon], zoom_start=7, tiles="OpenStreetMap")
+# ----------------------------------------------------------------------
+# MAP HELPERS
+# ----------------------------------------------------------------------
+def make_map(lat, lon, quakes=None, alerts=None):
+    m = folium.Map(location=[lat, lon], zoom_start=7)
     folium.Marker([lat, lon], popup="Selected Location", icon=folium.Icon(color="red")).add_to(m)
-    
-    if quakes_df is not None and not quakes_df.empty:
-        for _, q in quakes_df.iterrows():
+
+    if quakes is not None and not quakes.empty:
+        for _, q in quakes.iterrows():
             color = "red" if q["magnitude"] >= 5 else "orange" if q["magnitude"] >= 3 else "green"
             folium.CircleMarker(
-                location=[q["lat"], q["lon"]],
+                [q["lat"], q["lon"]],
                 radius=max(5, q["magnitude"] * 2),
                 color=color,
                 fill=True,
-                popup=f"M{q['magnitude']} | {q['time'].strftime('%Y-%m-%d %H:%M')} | {q['distance_km']}km"
+                popup=f"M{q['magnitude']} | {q['time'].strftime('%m/%d %H:%M')} | {q['distance_km']}km",
             ).add_to(m)
-    
-    if alerts_df is not None and not alerts_df.empty:
-        for _, a in alerts_df.iterrows():
+
+    if alerts is not None and not alerts.empty:
+        for _ in alerts.itertuples():
             folium.Marker(
                 [lat, lon],
                 icon=folium.Icon(color="purple", icon="warning"),
-                popup=f"<b>{a['event']}</b><br>{a['description'][:100]}..."
+                popup="Warning: Active Alert",
             ).add_to(m)
-    
     return m
 
-# === PDF UTILITIES ===
-def fig_to_base64_png(fig):
+# ----------------------------------------------------------------------
+# PDF GENERATION (pdfkit)
+# ----------------------------------------------------------------------
+def fig_to_png_base64(fig):
     buf = BytesIO()
     fig.write_image(buf, format="png", engine="kaleido")
-    buf.seek(0)
-    return base64.b64encode(buf.read()).decode()
+    return base64.b64encode(buf.getvalue()).decode()
 
-def folium_to_png(m):
-    img_data = m._to_png()
-    return base64.b64encode(img_data).decode()
+def map_to_png_base64(m):
+    img = m._to_png()
+    return base64.b64encode(img).decode()
 
-def generate_pdf_html(title, location_name, quakes_df, forecast_df, alerts_df, primary_color, secondary_color):
+def build_pdf_html(title, loc_name, quakes_df, forecast_df, alerts_df, prim, sec):
     date_str = "October 25, 2025"
-    
-    # Static images
-    map_img = None
-    if not quakes_df.empty or not alerts_df.empty:
-        m = create_folium_map(st.session_state.lat, st.session_state.lon, quakes_df, alerts_df)
-        map_img = folium_to_png(m)
 
-    pie_img = None
+    # ---- static assets -------------------------------------------------
+    map_b64 = None
+    if not quakes_df.empty or not alerts_df.empty:
+        map_b64 = map_to_png_base64(make_map(st.session_state.lat, st.session_state.lon, quakes_df, alerts_df))
+
+    pie_b64 = None
     if not quakes_df.empty:
         bins = [0, 10, 100, 500, 1000]
         labels = ["0-10km", "11-100km", "101-500km", ">500km"]
-        quakes_df['bin'] = pd.cut(quakes_df['distance_km'], bins=bins, labels=labels, include_lowest=True)
-        counts = quakes_df['bin'].value_counts().reindex(labels, fill_value=0)
-        fig = px.pie(values=counts.values, names=counts.index, color_discrete_sequence=[primary_color, secondary_color])
-        pie_img = fig_to_base64_png(fig)
+        quakes_df["bin"] = pd.cut(quakes_df["distance_km"], bins=bins, labels=labels, include_lowest=True)
+        counts = quakes_df["bin"].value_counts().reindex(labels, fill_value=0)
+        fig = px.pie(values=counts.values, names=counts.index,
+                     color_discrete_sequence=[prim, sec])
+        pie_b64 = fig_to_png_base64(fig)
 
+    # ---- HTML ---------------------------------------------------------
     html = f"""
+    <!DOCTYPE html>
     <html>
     <head>
+        <meta charset="utf-8">
         <style>
-            body {{ font-family: Arial, sans-serif; margin: 1in; line-height: 1.5; }}
-            h1 {{ color: {primary_color}; text-align: center; }}
-            h2 {{ color: {secondary_color}; border-bottom: 2px solid #ccc; padding-bottom: 5px; }}
-            table {{ width: 100%; border-collapse: collapse; margin: 15px 0; }}
-            th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
-            th {{ background-color: #f2f2f2; }}
-            .page-break {{ page-break-before: always; }}
-            .footer {{ position: fixed; bottom: 0; left: 0; right: 0; text-align: center; font-size: 10px; }}
-            img {{ max-width: 100%; height: auto; }}
+            body {{font-family: Arial, Helvetica, sans-serif; margin: 1in; line-height: 1.5;}}
+            h1 {{color: {prim}; text-align:center;}}
+            h2 {{color: {sec}; border-bottom:2px solid #ddd; padding-bottom:5px;}}
+            table {{width:100%; border-collapse:collapse; margin:15px 0;}}
+            th, td {{border:1px solid #ddd; padding:8px; text-align:left;}}
+            th {{background:#f4f4f4;}}
+            img {{max-width:100%; height:auto; display:block; margin:20px auto;}}
+            .footer {{position:fixed; bottom:0; left:0; right:0; text-align:center; font-size:10px;}}
         </style>
     </head>
     <body>
-        <!-- Cover Page -->
-        <div style="text-align:center; margin-top:100px;">
+        <div style="text-align:center; margin-top:120px;">
             <h1>Earthquake & Weather Report</h1>
-            <h2>{location_name}</h2>
+            <h2>{loc_name}</h2>
             <p><strong>Generated on:</strong> {date_str}</p>
         </div>
-        <div class="footer">Confidential Report | Page <span class="page">1</span></div>
-        <div class="page-break"></div>
+        <div class="footer">Confidential – Page <span class="page">1</span></div>
 
-        <!-- Executive Summary -->
+        <pagebreak />
+
         <h2>Executive Summary</h2>
-        <p><strong>Location:</strong> {location_name} ({st.session_state.lat:.4f}, {st.session_state.lon:.4f})</p>
-        <p><strong>Date Range:</strong> {st.session_state.start_date.strftime('%Y-%m-%d')} to {st.session_state.end_date.strftime('%Y-%m-%d')}</p>
-        <p><strong>Total Earthquakes:</strong> {len(quakes_df)}</p>
-        <p><strong>Active Alerts:</strong> {len(alerts_df)}</p>
+        <p><strong>Location:</strong> {loc_name} ({st.session_state.lat:.4f}, {st.session_state.lon:.4f})</p>
+        <p><strong>Period:</strong> {st.session_state.start_date.strftime('%Y-%m-%d')} to {st.session_state.end_date.strftime('%Y-%m-%d')}</p>
+        <p><strong>Earthquakes:</strong> {len(quakes_df)} | <strong>Alerts:</strong> {len(alerts_df)}</p>
     """
-    
-    if pie_img:
-        html += f'<img src="data:image/png;base64,{pie_img}" style="width:50%; display:block; margin:20px auto;">'
-    
-    if map_img:
-        html += f'<div class="page-break"></div><img src="data:image/png;base64,{map_img}">'
+    if pie_b64:
+        html += f'<img src="data:image/png;base64,{pie_b64}" />'
+    if map_b64:
+        html += f'<pagebreak /><img src="data:image/png;base64,{map_b64}" />'
 
     html += """
-        <div class="page-break"></div>
-        <h2>Earthquakes</h2>
+        <pagebreak />
+        <h2>Earthquakes (Top 10)</h2>
     """
     if not quakes_df.empty:
-        table_html = quakes_df.head(10)[['time', 'magnitude', 'distance_km', 'place']].to_html(index=False)
-        html += table_html
+        top = quakes_df.head(10)[["time","magnitude","distance_km","place"]].copy()
+        top["time"] = top["time"].dt.strftime("%Y-%m-%d %H:%M")
+        html += top.to_html(index=False)
 
     html += """
-        <div class="page-break"></div>
-        <h2>Weather Forecast</h2>
+        <pagebreak />
+        <h2>7-Day Forecast</h2>
     """
     if not forecast_df.empty:
-        table_html = forecast_df[['name', 'temperature', 'shortForecast']].to_html(index=False)
-        html += table_html
+        html += forecast_df[["name","temperature","shortForecast"]].to_html(index=False)
 
     html += """
-        <div class="page-break"></div>
-        <h2>Alerts</h2>
+        <pagebreak />
+        <h2>Active Alerts</h2>
     """
     if not alerts_df.empty:
-        table_html = alerts_df[['event', 'severity', 'areaDesc']].to_html(index=False)
-        html += table_html
+        html += alerts_df[["event","severity","areaDesc"]].to_html(index=False)
     else:
         html += "<p>No active alerts.</p>"
 
     html += "</body></html>"
     return html
 
-# === MAIN APP ===
+# ----------------------------------------------------------------------
+# MAIN APP
+# ----------------------------------------------------------------------
 def main():
-    st.title("🌍 Location-Based Disaster Report Generator")
-    st.markdown("Real-time earthquake, weather, and alert analysis with PDF export.")
+    st.title("Location-Based Disaster Report Generator")
+    st.markdown("Real-time USGS + NOAA data • Interactive charts • **PDF export**")
 
-    # === SIDEBAR INPUTS ===
+    # ------------------- SIDEBAR -------------------
     with st.sidebar:
-        st.header("⚙️ Configuration")
-        
-        input_method = st.radio("Location Input", ["Coordinates", "City Name"])
-        
-        if input_method == "Coordinates":
+        st.header("Configuration")
+        mode = st.radio("Location input", ["Coordinates", "City name"])
+
+        if mode == "Coordinates":
             lat = st.number_input("Latitude", value=37.7749, format="%.6f")
             lon = st.number_input("Longitude", value=-122.4194, format="%.6f")
-            location_name = f"Custom Location ({lat:.4f}, {lon:.4f})"
+            loc_name = f"Custom ({lat:.4f}, {lon:.4f})"
         else:
-            city = st.text_input("City Name", "San Francisco")
+            city = st.text_input("City", "San Francisco")
             if st.button("Geocode"):
                 with st.spinner("Geocoding..."):
                     lat, lon = geocode_location(city)
                     if lat:
-                        st.success(f"Found: {lat:.4f}, {lon:.4f}")
-                        location_name = city
+                        st.success(f"{lat:.4f}, {lon:.4f}")
+                        loc_name = city
                     else:
-                        st.error("City not found.")
+                        st.error("Not found")
                         lat, lon = 37.7749, -122.4194
-                        location_name = "San Francisco"
+                        loc_name = "San Francisco"
             else:
                 lat, lon = 37.7749, -122.4194
-                location_name = "San Francisco"
+                loc_name = "San Francisco"
 
         country = st.selectbox("Country", ["US", "CA", "MX"], index=0)
-        
+
         col1, col2 = st.columns(2)
         with col1:
-            start_date = st.date_input("Start Date", value=datetime.now() - timedelta(days=30))
+            start = st.date_input("Start", datetime.now() - timedelta(days=30))
         with col2:
-            end_date = st.date_input("End Date", value=datetime.now())
+            end = st.date_input("End", datetime.now())
 
-        st.header("🎨 Theme")
-        primary_color = st.color_picker("Primary Color", "#FF6B6B")
-        secondary_color = st.color_picker("Secondary Color", "#4ECDC4")
-        background_color = st.color_picker("Background", "#FFFFFF")
+        st.header("Theme")
+        prim = st.color_picker("Primary", "#FF6B6B")
+        sec = st.color_picker("Secondary", "#4ECDC4")
+        bg = st.color_picker("Background", "#FFFFFF")
+        inject_custom_css(prim, sec, bg)
 
-        inject_custom_css(primary_color, secondary_color, background_color)
-
-    # Store in session state
+    # store in session_state for PDF generation
     st.session_state.update({
-        "lat": lat, "lon": lon, "location_name": location_name,
-        "start_date": start_date, "end_date": end_date,
-        "country": country, "primary_color": primary_color, "secondary_color": secondary_color
+        "lat": lat, "lon": lon, "location_name": loc_name,
+        "start_date": start, "end_date": end,
+        "country": country, "primary": prim, "secondary": sec,
     })
 
-    # === MAP PREVIEW ===
-    st.subheader("📍 Location Preview")
-    preview_map = folium.Map(location=[lat, lon], zoom_start=9)
-    folium.Marker([lat, lon], popup=location_name).add_to(preview_map)
-    folium_static(preview_map, width=700, height=300)
+    # ------------------- MAP PREVIEW -------------------
+    st.subheader("Location preview")
+    preview = folium.Map(location=[lat, lon], zoom_start=9)
+    folium.Marker([lat, lon], popup=loc_name).add_to(preview)
+    folium_static(preview, width=700, height=300)
 
-    # === DATA FETCHING ===
-    with st.spinner("Fetching earthquake data..."):
-        quakes_df = fetch_earthquakes(lat, lon, start_date, end_date)
-    
-    with st.spinner("Fetching weather data..."):
-        forecast_url, _ = get_weather_grid(lat, lon)
-        forecast_df = fetch_forecast(forecast_url)
-    
-    with st.spinner("Fetching alerts..."):
-        alerts_df = fetch_alerts(lat, lon, country)
+    # ------------------- FETCH DATA -------------------
+    with st.spinner("Earthquakes..."):
+        quakes = fetch_earthquakes(lat, lon, start, end)
+    with st.spinner("Weather grid..."):
+        forecast_url, _ = get_grid(lat, lon)
+    with st.spinner("Forecast..."):
+        forecast = fetch_forecast(forecast_url)
+    with st.spinner("Alerts..."):
+        alerts = fetch_alerts(lat, lon, country)
 
-    # === TABS ===
-    tab1, tab2, tab3, tab4 = st.tabs(["Executive Summary", "Earthquakes", "Weather", "Alerts"])
+    # ------------------- TABS -------------------
+    t1, t2, t3, t4 = st.tabs(["Executive Summary", "Earthquakes", "Weather", "Alerts"])
 
-    # === TAB 1: Executive Summary ===
-    with tab1:
-        st.header(f"Report for {location_name}")
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Total Earthquakes", len(quakes_df))
-        with col2:
-            st.metric("Active Alerts", len(alerts_df))
-        with col3:
-            avg_temp = forecast_df["temperature"].head(6).mean() if not forecast_df.empty else 0
-            st.metric("Avg Temp (3 days)", f"{avg_temp:.1f}°F")
-        with col4:
-            risk = "High" if len(quakes_df) > 5 or len(alerts_df) > 0 else "Low"
-            st.metric("Risk Level", risk)
+    # ---- Executive Summary ----
+    with t1:
+        st.header(f"Report – {loc_name}")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Earthquakes", len(quakes))
+        c2.metric("Alerts", len(alerts))
+        avg_temp = forecast["temperature"].head(6).mean() if not forecast.empty else 0
+        c3.metric("Avg Temp (3 d)", f"{avg_temp:.1f}°F")
+        risk = "High" if len(quakes) > 5 or len(alerts) > 0 else "Low"
+        c4.metric("Risk", risk)
 
         col1, col2 = st.columns(2)
         with col1:
-            if not quakes_df.empty:
+            if not quakes.empty:
                 bins = [0, 10, 100, 500, 1000]
                 labels = ["0-10km", "11-100km", "101-500km", ">500km"]
-                quakes_df['bin'] = pd.cut(quakes_df['distance_km'], bins=bins, labels=labels)
-                fig = px.pie(values=quakes_df['bin'].value_counts(), names=labels, title="Quakes by Distance")
-                fig.update_traces(marker=dict(colors=[primary_color, secondary_color]))
+                quakes["bin"] = pd.cut(quakes["distance_km"], bins=bins, labels=labels)
+                fig = px.pie(quakes["bin"].value_counts(), names=labels,
+                             color_discrete_sequence=[prim, sec])
                 st.plotly_chart(fig, use_container_width=True)
         with col2:
-            if not forecast_df.empty:
-                daily = forecast_df[::2].head(7)
-                fig = px.line(daily, x="name", y="temperature", title="7-Day Temperature")
-                fig.update_traces(line_color=secondary_color)
+            if not forecast.empty:
+                daily = forecast[::2].head(7)
+                fig = px.line(daily, x="name", y="temperature", markers=True,
+                              line_shape="spline")
+                fig.update_traces(line_color=sec)
                 st.plotly_chart(fig, use_container_width=True)
 
-        m = create_folium_map(lat, lon, quakes_df, alerts_df)
-        st.components.v1.html(m._repr_html_(), height=500)
+        m = make_map(lat, lon, quakes, alerts)
+        folium_static(m, width=700, height=450)
 
-    # === TAB 2: Earthquakes ===
-    with tab2:
-        if quakes_df.empty:
-            st.info("No earthquakes found in the selected range.")
+    # ---- Earthquakes ----
+    with t2:
+        if quakes.empty:
+            st.info("No earthquakes in range.")
         else:
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Strongest", f"M{quakes_df['magnitude'].max():.1f}")
-            with col2:
-                st.metric("Avg Depth", f"{quakes_df['depth'].mean():.1f} km")
-            with col3:
-                st.metric("Within 100km", len(quakes_df[quakes_df['distance_km'] <= 100]))
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Strongest", f"M{quakes['magnitude'].max():.1f}")
+            c2.metric("Avg Depth", f"{quakes['depth'].mean():.1f} km")
+            c3.metric("≤100 km", len(quakes[quakes["distance_km"] <= 100]))
 
             col1, col2 = st.columns(2)
             with col1:
-                fig = px.scatter(quakes_df, x="time", y="magnitude", size="distance_km", title="Magnitude Over Time")
+                fig = px.scatter(quakes, x="time", y="magnitude", size="distance_km")
                 st.plotly_chart(fig, use_container_width=True)
             with col2:
-                fig = px.histogram(quakes_df, x="magnitude", nbins=20, title="Magnitude Distribution")
-                fig.update_traces(marker_color=primary_color)
+                fig = px.histogram(quakes, x="magnitude", nbins=20,
+                                   color_discrete_sequence=[prim])
                 st.plotly_chart(fig, use_container_width=True)
 
-            m = create_folium_map(lat, lon, quakes_df)
+            m = make_map(lat, lon, quakes)
             folium_static(m, width=700, height=400)
 
-            display_df = quakes_df[['time', 'magnitude', 'distance_km', 'place']].copy()
-            display_df['time'] = display_df['time'].dt.strftime('%Y-%m-%d %H:%M')
-            st.dataframe(display_df.head(20), use_container_width=True)
+            disp = quakes[["time","magnitude","distance_km","place"]].copy()
+            disp["time"] = disp["time"].dt.strftime("%Y-%m-%d %H:%M")
+            st.dataframe(disp.head(20), use_container_width=True)
 
-    # === TAB 3: Weather ===
-    with tab3:
-        if forecast_df.empty:
-            st.info("Weather data unavailable for this location (NOAA is US-only).")
+    # ---- Weather ----
+    with t3:
+        if forecast.empty:
+            st.info("NOAA data unavailable (US-only).")
         else:
-            current = forecast_df.iloc[0]
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Current", f"{current['temperature']}°F")
-            with col2:
-                st.metric("Wind", current['windSpeed'])
-            with col3:
-                st.metric("Precip", f"{current['probabilityOfPrecipitation']}%")
+            cur = forecast.iloc[0]
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Current", f"{cur['temperature']}°F")
+            c2.metric("Wind", cur["windSpeed"])
+            c3.metric("Precip", f"{cur['precip']}%")
 
             fig = go.Figure()
-            daily = forecast_df[::2].head(7)
-            fig.add_trace(go.Scatter(x=daily["name"], y=daily["temperature"], mode="lines+markers", name="Temp"))
-            fig.update_layout(title="7-Day Forecast")
+            daily = forecast[::2].head(7)
+            fig.add_trace(go.Scatter(x=daily["name"], y=daily["temperature"],
+                                     mode="lines+markers", name="Temp"))
+            fig.update_layout(title="7-Day Temperature")
             st.plotly_chart(fig, use_container_width=True)
 
-            table_df = forecast_df[['name', 'temperature', 'shortForecast', 'windSpeed', 'probabilityOfPrecipitation']].copy()
-            table_df.rename(columns={"name": "Day", "temperature": "Temp (°F)", "shortForecast": "Conditions", "windSpeed": "Wind", "probabilityOfPrecipitation": "Precip %"}, inplace=True)
-            st.dataframe(table_df, use_container_width=True)
+            tbl = forecast[["name","temperature","shortForecast","windSpeed","precip"]].copy()
+            tbl.rename(columns={"name":"Day","temperature":"Temp °F","shortForecast":"Conditions",
+                                "windSpeed":"Wind","precip":"Precip %"}, inplace=True)
+            st.dataframe(tbl, use_container_width=True)
 
-    # === TAB 4: Alerts ===
-    with tab4:
-        if alerts_df.empty:
+    # ---- Alerts ----
+    with t4:
+        if alerts.empty:
             st.success("No active alerts.")
         else:
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Total Alerts", len(alerts_df))
-            with col2:
-                severe = len(alerts_df[alerts_df['severity'] == 'Severe'])
-                st.metric("Severe", severe)
+            c1, c2 = st.columns(2)
+            c1.metric("Total", len(alerts))
+            c2.metric("Severe", len(alerts[alerts["severity"]=="Severe"]))
 
-            fig = px.pie(alerts_df, names="event", title="Alerts by Type")
+            fig = px.pie(alerts, names="event", color_discrete_sequence=[prim, sec])
             st.plotly_chart(fig, use_container_width=True)
 
-            for _, alert in alerts_df.iterrows():
-                with st.expander(f"⚠️ {alert['event']} - {alert['severity']}"):
-                    st.write(f"**Area:** {alert['areaDesc']}")
-                    st.write(f"**Effective:** {alert['effective']}")
-                    st.write(f"**Expires:** {alert['expires']}")
-                    st.write(alert['description'])
+            for a in alerts.itertuples():
+                with st.expander(f"{a.event} – {a.severity}"):
+                    st.write(f"**Area:** {a.areaDesc}")
+                    st.write(f"**Effective:** {a.effective} | **Expires:** {a.expires}")
+                    st.write(a.description)
 
-    # === PDF EXPORT ===
-    if st.button("📄 Generate and Download PDF Report", type="primary"):
-        with st.spinner("Generating PDF..."):
-            try:
-                html_content = generate_pdf_html(
-                    "Disaster Report", location_name, quakes_df, forecast_df, alerts_df,
-                    primary_color, secondary_color
-                )
-                pdf_bytes = HTML(string=html_content).write_pdf()
-                
-                st.download_button(
-                    label="Download PDF Now",
-                    data=pdf_bytes,
-                    file_name=f"{location_name.replace(' ', '_')}_Report_2025-10-25.pdf",
-                    mime="application/pdf"
-                )
-                st.success("PDF ready for download!")
-            except Exception as e:
-                st.error(f"PDF generation failed: {str(e)}")
+    # ------------------- PDF EXPORT -------------------
+    if st.button("Generate & Download PDF Report", type="primary"):
+        with st.spinner("Building PDF..."):
+            html_str = build_pdf_html(
+                "Disaster Report", loc_name, quakes, forecast, alerts,
+                st.session_state.primary, st.session_state.secondary,
+            )
+            # pdfkit options – works on Streamlit Cloud
+            config = pdfkit.configuration(wkhtmltopdf="/usr/bin/wkhtmltopdf")
+            pdf_bytes = pdfkit.from_string(
+                html_str,
+                False,
+                configuration=config,
+                options={
+                    "page-size": "Letter",
+                    "margin-top": "0.75in",
+                    "margin-right": "0.75in",
+                    "margin-bottom": "0.75in",
+                    "margin-left": "0.75in",
+                    "encoding": "UTF-8",
+                    "no-outline": None,
+                    "enable-local-file-access": None,
+                },
+            )
+            b64 = base64.b64encode(pdf_bytes).decode()
+            href = f'<a href="data:application/pdf;base64,{b64}" download="{loc_name.replace(" ", "_")}_Report_2025-10-25.pdf">Download PDF now</a>'
+            st.markdown(href, unsafe_allow_html=True)
+            st.success("PDF ready!")
 
 if __name__ == "__main__":
     main()
